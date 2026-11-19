@@ -158,7 +158,8 @@
    "cmd": "python3 -m pip install --quiet pyyaml==6.0.2 && python3 tools/gerar_registros.py --check && python3 tools/validar_consistencia.py"
   },
   "CONTRATO": {
-   "cmd": "npm run lint:spec"
+   "cmd": "npm run lint:spec && base=\"$(mktemp -d)\" && git show origin/main:contracts/openapi.yaml > \"$base/openapi-base.yaml\" && docker run --rm -v \"$base:/base:ro\" -v \"$PWD/contracts:/head:ro\" tufin/oasdiff:v1.11.7 breaking /base/openapi-base.yaml /head/openapi.yaml --fail-on ERR --err-ignore /head/oasdiff-erros-aceitos.txt",
+   "_leia": "Spectral e, contra a main, oasdiff com a mesma imagem e lista de erros aceitos do ci.yml (DL-43). A lista de erros aceitos é protegida."
   },
   "TESTES": {
    "cmd": "NO_COLOR=1 npx --no-install vitest run --reporter=default",
