@@ -312,10 +312,20 @@ class Spec:
         return sorted(r for r in self.must() if self.reqs[r]["origem"] != "USUARIO")
 
 
-def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_minimo: str = "PADRAO") -> Spec:
+def ids_citados(texto: str, ids: dict) -> set[str]:
+    """IDs de requisito, critério, erro e regra que aparecem num texto (ex.: o pedido da issue)."""
+    alt = "|".join(_re_id(ids, k) for k in ("requisito", "criterio", "erro", "regra"))
+    return set(re.findall(rf"\b(?:{alt})\b", texto or ""))
+
+
+def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_minimo: str = "PADRAO",
+             pedido: str | None = None) -> Spec:
     """Interpreta e valida a SPEC. Qualquer problema vira ErroFL com a lista completa.
 
     ids: prefixos (ids_de(cfg)). fonte: texto da fonte normativa (ex.: REQ.md), quando houver.
+    pedido: texto que o humano escreveu na issue. Com fonte e pedido, a SPEC só define um ID que já
+    existe na fonte se o pedido citar esse ID (DL-45): sem isso, uma IA podia numerar item novo com um
+    ID existente de outro requisito, e a máquina aceitava porque o ID existe.
     """
     ids = ids or dict(IDS_PADRAO)
     r_req, r_ca, r_err, r_rn = (_re_id(ids, k) for k in ("requisito", "criterio", "erro", "regra"))
@@ -391,6 +401,13 @@ def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_m
             if not (novo and i.startswith(novo)) and not re.search(rf"\b{re.escape(i)}\b", fonte):
                 erros.append(f"{i} não existe em {ids.get('fonte_normativa')}: cite um ID de lá ou use "
                              f"{novo or 'o prefixo de novo'}{i} para item novo (que depois entra por CHG)")
+        if pedido is not None:
+            autorizados = ids_citados(pedido, ids)
+            for i in todos:
+                if not (novo and i.startswith(novo)) and i not in autorizados and re.search(rf"\b{re.escape(i)}\b", fonte):
+                    erros.append(f"{i} já existe em {ids.get('fonte_normativa')} e o pedido não o cita: "
+                                 f"só use ID existente que o pedido cite; item novo leva o prefixo {novo or 'de novo'} "
+                                 f"(ex.: {novo}{i.split('-')[0]}-001) e entra por CHG")
     abertas = [l for l in sec.get("perguntas abertas", []) if l.startswith("- ")]
     if abertas:
         erros.append(f"{len(abertas)} pergunta(s) aberta(s): responda antes de seguir")
@@ -815,7 +832,9 @@ def spec_da_tarefa(repo: str, tarefa_dir: str, cfg: dict) -> Spec:
         if not os.path.isfile(c):
             raise ErroFL(f"fonte normativa {ids['fonte_normativa']} não encontrada no repositório")
         fonte = ler(c)
-    return ler_spec(ler(os.path.join(tarefa_dir, "spec.md")), ids, fonte, cfg.get("nivel_minimo", "PADRAO"))
+    pedido = os.path.join(tarefa_dir, "pedido.md")
+    return ler_spec(ler(os.path.join(tarefa_dir, "spec.md")), ids, fonte, cfg.get("nivel_minimo", "PADRAO"),
+                    ler(pedido) if fonte is not None and os.path.isfile(pedido) else None)
 
 
 def checar_entrega(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict) -> dict:
@@ -1141,6 +1160,27 @@ def verificar_pr(repo: str, tarefa_dir: str, cfg: dict, alterados_desde_green: l
 
 
 # ----------------------------------------------------------------------------- prompt
+def regras_da_spec(repo: str, tarefa_dir: str, cfg: dict) -> str:
+    """O que a máquina vai exigir da SPEC, dito antes, para não gastar tentativa (DL-45)."""
+    ids = ids_de(cfg)
+    linhas = ["## Regras que a máquina confere na SPEC"]
+    if cfg.get("nivel_minimo", "PADRAO") == "ELEVADO":
+        linhas.append("- Este repositório exige `Nível: ELEVADO`.")
+    linhas.append("- Todo requisito MUST precisa de ao menos um critério de aceite.")
+    if ids.get("fonte_normativa"):
+        c = os.path.join(repo, ids["fonte_normativa"])
+        fonte = ler(c) if os.path.isfile(c) else ""
+        ped = os.path.join(tarefa_dir, "pedido.md")
+        aut = sorted(i for i in ids_citados(ler(ped) if os.path.isfile(ped) else "", ids)
+                     if re.search(rf"\b{re.escape(i)}\b", fonte))
+        novo = ids.get("prefixo_novo") or ""
+        linhas.append(f"- IDs que já existem em {ids['fonte_normativa']} e que você pode definir na SPEC "
+                      f"(o pedido os cita): {', '.join(aut) if aut else 'nenhum'}.")
+        linhas.append(f"- Qualquer outro requisito, critério, erro ou regra é item novo: use o prefixo `{novo}` "
+                      f"(ex.: `{novo}RF-001`, `{novo}CA-001`). Nunca reutilize um ID existente para outro assunto.")
+    return "\n".join(linhas)
+
+
 def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, diff: str | None = None) -> str:
     """Prompt = regras fixas + manifesto do papel + contexto da tarefa (como DADO, delimitado)."""
     base = os.path.join(repo, ".spec2run")
@@ -1160,6 +1200,8 @@ def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, 
             anexo(n.upper().replace(".", "_"), ler(c))
     if papel == "REVIEWER" and alvo == "codigo" and diff is not None:
         anexo("DIFF_DA_TAREFA", diff[:MAX_DIFF] + (f"\n[diff cortado em {MAX_DIFF} caracteres]" if len(diff) > MAX_DIFF else ""))
+    if papel == "SPECIFIER" or (papel == "REVIEWER" and alvo == "spec"):
+        partes.append(regras_da_spec(repo, tarefa_dir, cfg))
     modelo = {"SPECIFIER": "spec.md", "ARCHITECT": "design.md", "REVIEWER": "revisao.md"}.get(papel)
     if modelo:
         partes.append("## Formato obrigatório da entrega\n" + ler(os.path.join(base, "modelos", modelo)))
