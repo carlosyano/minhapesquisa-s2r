@@ -1,4 +1,4 @@
-# Spec2Run Light 1.0: orquestra 5 agentes de IA (Claude e DeepSeek) numa tarefa por issue.
+# Spec2Run Light 1.0: orquestra 5 agentes de IA (Claude, DeepSeek e Qwen) numa tarefa por issue.
 #
 # Como a orquestração funciona:
 #   cada execução deste workflow faz UMA etapa e dispara a próxima (workflow_dispatch).
@@ -183,6 +183,9 @@ jobs:
       EXECUTAR: ${{ needs.orquestrar.outputs.executar }}
       VARIAVEL_CHAVE: ${{ needs.orquestrar.outputs.variavel_chave }}
       MODELO: ${{ needs.orquestrar.outputs.modelo }}
+      # Endpoint do fornecedor, quando o catálogo pede (DL-44): variável do Environment do papel,
+      # não segredo. Vazio para quem não usa.
+      AGENT_BASE_URL: ${{ vars.AGENT_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
         with: {path: _fl, ref: main, persist-credentials: false}

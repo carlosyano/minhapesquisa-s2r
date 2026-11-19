@@ -7,3 +7,7 @@ dist/
 .stryker-tmp/
 reports/
 ~$*
+
+# Python (Spec2Run): bytecode não vai para o repositório
+__pycache__/
+*.pyc
