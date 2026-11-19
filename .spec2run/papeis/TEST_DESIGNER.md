@@ -1,4 +1,4 @@
-# Papel: TEST_DESIGNER (padrão: DeepSeek)
+# Papel: TEST_DESIGNER (padrão: Qwen4-max, via OpenCode)
 
 Escreva os testes automatizados que provam a SPEC, ANTES do código existir.
 

@@ -48,11 +48,11 @@
    "ambiente": "s2r-architect"
   },
   "TEST_DESIGNER": {
-   "fornecedor": "deepseek",
-   "ferramenta": "opencode",
+   "fornecedor": "alibaba",
+   "ferramenta": "opencode-alibaba",
    "versao_ferramenta": "1.19.5",
-   "modelo": "deepseek/deepseek-v4-pro",
-   "variavel_chave": "DEEPSEEK_API_KEY",
+   "modelo": "alibaba-sg/qwen4-max",
+   "variavel_chave": "DASHSCOPE_API_KEY",
    "ambiente": "s2r-test-designer"
   },
   "BUILDER": {
@@ -81,6 +81,11 @@
   "opencode": {
    "instalar": "npm install -g opencode-ai@{versao}",
    "executar": "printf '{\"permission\":{\"edit\":\"allow\",\"bash\":\"deny\",\"webfetch\":\"deny\"}}' > \"$RUNNER_TEMP/opencode.json\" && OPENCODE_CONFIG=\"$RUNNER_TEMP/opencode.json\" opencode run \"$PROMPT\" --model \"$MODELO\" > \"$SAIDA\""
+  },
+  "opencode-alibaba": {
+   "instalar": "npm install -g opencode-ai@{versao}",
+   "executar": "[[ \"${AGENT_BASE_URL:-}\" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || { echo \"::error::defina a variável AGENT_BASE_URL (https) no Environment do papel\" >&2; exit 2; } && m=\"${MODELO#*/}\" && printf '{\"permission\":{\"edit\":\"allow\",\"bash\":\"deny\",\"webfetch\":\"deny\"},\"provider\":{\"alibaba-sg\":{\"npm\":\"@ai-sdk/anthropic\",\"name\":\"Alibaba Cloud Model Studio\",\"options\":{\"baseURL\":\"{env:AGENT_BASE_URL}\",\"apiKey\":\"{env:DASHSCOPE_API_KEY}\"},\"models\":{\"%s\":{\"name\":\"%s\"}}}}}' \"$m\" \"$m\" > \"$RUNNER_TEMP/opencode.json\" && OPENCODE_CONFIG=\"$RUNNER_TEMP/opencode.json\" opencode run \"$PROMPT\" --model \"$MODELO\" > \"$SAIDA\"",
+   "_leia": "OpenCode com o Alibaba Cloud Model Studio (Singapura). AGENT_BASE_URL é variável (não segredo) do Environment do papel: https://<WorkspaceId>.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1. A chave vai em DASHSCOPE_API_KEY (variavel_chave). DL-44."
   }
  },
  "diversidade": [
@@ -106,7 +111,7 @@
     "BUILDER"
    ],
    "modo": "ADVISORY",
-   "motivo": "decisão do Carlos (ADR-18 da v4; 19/11/2026): DeepSeek especifica, testa e codifica; a revisão da SPEC e do código é da Anthropic (BLOCK acima); o RED e o hash dos testes compensam"
+   "motivo": "decisão do Carlos (19/11/2026, DL-44): Qwen testa e DeepSeek codifica, fornecedores diferentes; ADVISORY para permitir voltar ao mesmo fornecedor (ADR-18), com o RED e o hash dos testes compensando"
   }
  ],
  "testes": {
