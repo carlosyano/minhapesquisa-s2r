@@ -375,8 +375,12 @@ jobs:
       - name: Verificar o PR
         working-directory: repo
         run: |
-          S=failure; D="PR fora do Spec2Run Light"
+          # PR que não é de tarefa do Spec2Run (o seu, ou do processo normal do repositório) não
+          # passa por este gate: recebe sucesso "não se aplica" e segue só a regra da main e o CI.
+          # Sem isso, o check obrigatório travaria todo PR que não viesse do Spec2Run.
+          S=success; D="não é tarefa do Spec2Run: gate não se aplica"
           if [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] && [[ "$HEAD_REF" =~ ^s2r/tarefa-([0-9]{1,9})$ ]]; then
+            S=failure
             if python -P -m spec2run verificar-pr --repo . --tarefa "${BASH_REMATCH[1]}" --base origin/main; then
               S=success; D="tarefa revisada; merge liberado"
             else
