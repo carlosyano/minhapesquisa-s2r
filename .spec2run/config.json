@@ -32,11 +32,11 @@
  ],
  "papeis": {
   "SPECIFIER": {
-   "fornecedor": "google",
-   "ferramenta": "gemini-cli",
-   "versao_ferramenta": "0.68.0",
-   "modelo": "<VALIDAR: modelo Gemini Pro>",
-   "variavel_chave": "GEMINI_API_KEY",
+   "fornecedor": "deepseek",
+   "ferramenta": "opencode",
+   "versao_ferramenta": "1.19.5",
+   "modelo": "deepseek/deepseek-v4-pro",
+   "variavel_chave": "DEEPSEEK_API_KEY",
    "ambiente": "s2r-specifier"
   },
   "ARCHITECT": {
@@ -51,7 +51,7 @@
    "fornecedor": "deepseek",
    "ferramenta": "opencode",
    "versao_ferramenta": "1.19.5",
-   "modelo": "deepseek/deepseek-reasoner",
+   "modelo": "deepseek/deepseek-v4-pro",
    "variavel_chave": "DEEPSEEK_API_KEY",
    "ambiente": "s2r-test-designer"
   },
@@ -59,7 +59,7 @@
    "fornecedor": "deepseek",
    "ferramenta": "opencode",
    "versao_ferramenta": "1.19.5",
-   "modelo": "deepseek/deepseek-chat",
+   "modelo": "deepseek/deepseek-flash",
    "variavel_chave": "DEEPSEEK_API_KEY",
    "ambiente": "s2r-builder"
   },
@@ -74,10 +74,6 @@
  },
  "ferramentas": {
   "_leia": "Catálogo de CLIs de agente. Para usar outra IA, acrescente uma entrada e aponte o papel para ela. {versao} é obrigatório em instalar. Em executar: $PROMPT (ou o arquivo $PROMPT_ARQUIVO), $MODELO e $SAIDA vêm da máquina; o agente não pode ter shell.",
-  "gemini-cli": {
-   "instalar": "npm install -g @google/gemini-cli@{versao}",
-   "executar": "gemini -p \"$PROMPT\" -m \"$MODELO\" --approval-mode auto_edit --output-format json > \"$SAIDA\""
-  },
   "claude-code": {
    "instalar": "npm install -g @anthropic-ai/claude-code@{versao}",
    "executar": "claude -p \"$PROMPT\" --model \"$MODELO\" --output-format json --allowedTools 'Read,Grep,Glob,Write,Edit' --disallowedTools 'Bash,WebFetch,WebSearch' > \"$SAIDA\""
@@ -110,7 +106,7 @@
     "BUILDER"
    ],
    "modo": "ADVISORY",
-   "motivo": "decisão do Carlos (ADR-18 da v4): DeepSeek testa e codifica; o RED e o hash dos testes compensam"
+   "motivo": "decisão do Carlos (ADR-18 da v4; 19/11/2026): DeepSeek especifica, testa e codifica; a revisão da SPEC e do código é da Anthropic (BLOCK acima); o RED e o hash dos testes compensam"
   }
  ],
  "testes": {

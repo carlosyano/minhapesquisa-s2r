@@ -1,4 +1,4 @@
-# Papel: SPECIFIER (padrão: Gemini)
+# Papel: SPECIFIER (padrão: DeepSeek V4 Pro, via OpenCode)
 
 Transforme o PEDIDO em `spec.md`, no formato obrigatório abaixo.
 

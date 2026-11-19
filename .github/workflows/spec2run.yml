@@ -1,4 +1,4 @@
-# Spec2Run Light 1.0: orquestra 5 agentes de IA (Gemini, Claude, DeepSeek) numa tarefa por issue.
+# Spec2Run Light 1.0: orquestra 5 agentes de IA (Claude e DeepSeek) numa tarefa por issue.
 #
 # Como a orquestração funciona:
 #   cada execução deste workflow faz UMA etapa e dispara a próxima (workflow_dispatch).
