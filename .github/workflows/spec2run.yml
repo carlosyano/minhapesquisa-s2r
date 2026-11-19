@@ -1,0 +1,426 @@
+# Spec2Run Light 1.0: orquestra 5 agentes de IA (Gemini, Claude, DeepSeek) numa tarefa por issue.
+#
+# Como a orquestração funciona:
+#   cada execução deste workflow faz UMA etapa e dispara a próxima (workflow_dispatch).
+#   A etapa seguinte nunca vem do evento: o job "orquestrar" a recalcula do registro da tarefa
+#   (.spec2run/tarefas/<issue>/registro.jsonl) com o código da main.
+#
+# Separação de poderes (o motivo de haver tantos jobs):
+#   orquestrar / publicar / registrar : token com escrita, NÃO executam código de agente;
+#   agente   : só a chave de API do papel (GitHub Environment do papel), token só de leitura;
+#   maquina  : executa testes e análises sobre o código dos agentes, SEM segredo e só leitura;
+#   gate     : check obrigatório da main ("spec2run/gate");
+#   implantar: só depois do merge, no Environment s2r-producao, que pede a sua aprovação (L5).
+#
+# Segurança de script: texto vindo de issue/comentário entra SEMPRE por variável de ambiente,
+# nunca por ${{ }} dentro de "run:" (isso permitiria injeção de comando).
+# Todo "python" roda com -P: sem ele a pasta atual (a branch da tarefa, escrita por agentes)
+# vem antes da biblioteca padrão, e um json.py ou spec2run/ plantado ali rodaria com o token.
+name: spec2run
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tarefa:
+        description: "Número da issue da tarefa"
+        required: true
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+permissions: {}
+
+# Uma execução por tarefa de cada vez. O GitHub descarta a execução PENDENTE mais antiga do
+# grupo quando chega outra; por isso (1) evento que não é do Spec2Run fica num grupo só dele e
+# não derruba a fila, e (2) os comandos /s2r são lidos da issue inteira a cada execução, então
+# um comentário cuja execução foi descartada é aplicado pela seguinte.
+concurrency:
+  group: >-
+    ${{ ((github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/s2r ')) ||
+         (github.event_name == 'issues' && github.event.label.name == 'spec2run') ||
+         github.event_name == 'workflow_dispatch')
+        && format('s2r-{0}', github.event.issue.number || inputs.tarefa)
+        || format('s2r-outro-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: ${{ github.workspace }}/_fl/tools
+  TAREFA: ${{ github.event.issue.number || inputs.tarefa }}
+
+jobs:
+  orquestrar:
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'spec2run') ||
+      (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+       contains(github.event.issue.labels.*.name, 'spec2run') &&
+       startsWith(github.event.comment.body, '/s2r ')) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: write
+      statuses: write
+    outputs:
+      tipo: ${{ steps.st.outputs.tipo }}
+      papel: ${{ steps.st.outputs.papel }}
+      alvo: ${{ steps.st.outputs.alvo }}
+      etapa: ${{ steps.st.outputs.etapa }}
+      ambiente: ${{ steps.st.outputs.ambiente }}
+      instalar: ${{ steps.st.outputs.instalar }}
+      executar: ${{ steps.st.outputs.executar }}
+      variavel_chave: ${{ steps.st.outputs.variavel_chave }}
+      modelo: ${{ steps.st.outputs.modelo }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validar número da tarefa
+        run: '[[ "$TAREFA" =~ ^[0-9]{1,9}$ ]] || { echo "tarefa inválida" >&2; exit 2; }'
+      - name: Ferramenta da main (fonte confiável)
+        uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Branch da tarefa
+        working-directory: repo
+        run: |
+          git config user.name "spec2run[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          B="s2r/tarefa-$TAREFA"
+          if git ls-remote --exit-code --heads origin "$B" >/dev/null; then
+            git checkout -q -B "$B" "origin/$B"
+          else
+            git checkout -q -b "$B"
+          fi
+          python -P -m spec2run checar-config --repo .
+      - name: Iniciar tarefa (issue marcada)
+        if: github.event_name == 'issues'
+        working-directory: repo
+        env:
+          TITULO: ${{ github.event.issue.title }}
+          CORPO: ${{ github.event.issue.body }}
+          AUTOR: ${{ github.event.issue.user.login }}
+          ROTULADOR: ${{ github.event.sender.login }}
+        run: |
+          printf '## %s\n\n%s\n' "$TITULO" "$CORPO" > "$RUNNER_TEMP/pedido.md"
+          python -P -m spec2run iniciar --repo . --tarefa "$TAREFA" --pedido-arquivo "$RUNNER_TEMP/pedido.md" \
+            --autor "$AUTOR" --rotulador "$ROTULADOR"
+          git add ".spec2run/tarefas/$TAREFA" && git commit -q -m "s2r(#$TAREFA): tarefa criada" || true
+      - name: Comandos /s2r da issue ainda não aplicados (em qualquer disparo)
+        working-directory: repo
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$TAREFA/comments" \
+            --jq '.[] | select(.body | startswith("/s2r ")) | {id, autor: .user.login, associacao: .author_association, texto: .body, url: .html_url, criado_em: .created_at} | tojson' \
+            > "$RUNNER_TEMP/comandos.jsonl"
+          python -P -m spec2run comandos --repo . --tarefa "$TAREFA" --arquivo "$RUNNER_TEMP/comandos.jsonl" \
+            --recusas-arquivo "$RUNNER_TEMP/recusas.md"
+          if [ -s "$RUNNER_TEMP/recusas.md" ]; then gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/recusas.md"; fi
+          git add ".spec2run/tarefas/$TAREFA" 2>/dev/null || true
+          git diff --cached --quiet || git commit -q -m "s2r(#$TAREFA): comandos da issue"
+      - name: Próxima etapa
+        id: st
+        working-directory: repo
+        run: python -P -m spec2run estado --repo . --tarefa "$TAREFA" --formato github --mensagem-arquivo "$RUNNER_TEMP/estado.md"
+      - name: Publicar branch e garantir o PR
+        working-directory: repo
+        run: |
+          B="s2r/tarefa-$TAREFA"
+          git push -q origin "$B"
+          if [ -z "$(gh pr list --head "$B" --state open --json number -q '.[].number')" ]; then
+            gh pr create --draft --base main --head "$B" --title "Spec2Run Light: tarefa #$TAREFA" \
+              --body "Tarefa #$TAREFA conduzida pelo Spec2Run Light. Closes #$TAREFA"
+          fi
+      - name: Avisar a pessoa
+        if: steps.st.outputs.tipo == 'HUMANO' || steps.st.outputs.tipo == 'FIM'
+        run: gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/estado.md"
+      - name: Liberar o merge (L4) quando a tarefa chegou a REVISADO
+        if: steps.st.outputs.gate == 'L4'
+        working-directory: repo
+        run: |
+          SHA=$(git rev-parse HEAD)
+          if python -P -m spec2run verificar-pr --repo . --tarefa "$TAREFA" --base origin/main; then
+            S=success; D="tarefa revisada; merge liberado"
+          else
+            S=failure; D="verificação do merge falhou; veja o job"
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state="$S" -f context="spec2run/gate" -f description="$D" >/dev/null
+          gh pr ready "s2r/tarefa-$TAREFA" || true
+          # O push feito pelo GITHUB_TOKEN não dispara o CI do repositório. Sem isso, os checks
+          # obrigatórios da main (os jobs do ci.yml) nunca apareceriam no PR. O ci.yml precisa
+          # ter o gatilho workflow_dispatch (Guia, seção da adaptação ao MinhaPesquisa).
+          CI=$(python3 -P -c "import json;print(json.load(open('.spec2run/config.json')).get('ci_do_repositorio',''))")
+          if [ -n "$CI" ]; then gh workflow run "$CI" --ref "s2r/tarefa-$TAREFA"; fi
+      - name: Avisar falha do orquestrador na issue
+        if: failure()
+        run: >-
+          gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body
+          "**Spec2Run Light:** o orquestrador falhou (configuração inválida, conflito de push ou erro do GitHub).
+          Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID, corrija e rode Actions > spec2run > Run workflow (tarefa $TAREFA)." || true
+
+  agente:
+    needs: orquestrar
+    if: needs.orquestrar.outputs.tipo == 'AGENTE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ needs.orquestrar.outputs.ambiente }}
+    permissions:
+      contents: read
+    env:
+      PAPEL: ${{ needs.orquestrar.outputs.papel }}
+      ALVO: ${{ needs.orquestrar.outputs.alvo }}
+      # Instalação e execução vêm do catálogo "ferramentas" do config.json da main (zona
+      # proibida para agentes). Trocar ou acrescentar uma IA é só editar o config.json.
+      INSTALAR: ${{ needs.orquestrar.outputs.instalar }}
+      EXECUTAR: ${{ needs.orquestrar.outputs.executar }}
+      VARIAVEL_CHAVE: ${{ needs.orquestrar.outputs.variavel_chave }}
+      MODELO: ${{ needs.orquestrar.outputs.modelo }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - name: Instalar a CLI do agente (versão fixada no config.json)
+        run: bash -c "$INSTALAR"
+      - name: Montar o prompt (regras + papel + tarefa como dado)
+        working-directory: repo
+        run: |
+          args=(prompt --repo . --tarefa "$TAREFA")
+          if [ "$PAPEL" = REVIEWER ] && [ "$ALVO" = codigo ]; then
+            git diff origin/main...HEAD -- . ':(exclude).spec2run/tarefas/*/registro.jsonl' > "$RUNNER_TEMP/diff.txt"
+            args+=(--diff-arquivo "$RUNNER_TEMP/diff.txt")
+          fi
+          python -P -m spec2run "${args[@]}" > "$RUNNER_TEMP/prompt.md"
+      - name: Executar o agente (sem shell, sem token do GitHub)
+        working-directory: repo
+        env:
+          AGENT_API_KEY: ${{ secrets.AGENT_API_KEY }}
+        run: |
+          [[ "$VARIAVEL_CHAVE" =~ ^[A-Z][A-Z0-9_]{1,63}$ ]] || { echo "variavel_chave inválida" >&2; exit 2; }
+          export PROMPT="$(cat "$RUNNER_TEMP/prompt.md")" PROMPT_ARQUIVO="$RUNNER_TEMP/prompt.md" MODELO SAIDA="$RUNNER_TEMP/saida-agente.json"
+          [ -n "$AGENT_API_KEY" ] || { echo "::error::segredo AGENT_API_KEY vazio no Environment do papel" >&2; exit 2; }
+          export "$VARIAVEL_CHAVE=$AGENT_API_KEY"
+          CHAVE="$AGENT_API_KEY"
+          unset AGENT_API_KEY
+          set +e
+          bash -c "$EXECUTAR"
+          rc=$?
+          set -e
+          # A chave não pode sair deste job: nem na entrega (que vira commit numa branch que
+          # pode ser pública) nem no artefato da saída da CLI. Se aparecer, tudo é descartado.
+          git add -A
+          if git diff --cached --binary | grep -qF -- "$CHAVE" || grep -qF -- "$CHAVE" "$SAIDA" 2>/dev/null; then
+            git reset -q --hard HEAD; git clean -fdxq; rm -f "$SAIDA"
+            echo "::error::a chave de API apareceu na entrega ou na saída do agente; entrega descartada"
+            exit 1
+          fi
+          git reset -q
+          exit "$rc"
+      - name: Empacotar a entrega
+        if: always()
+        working-directory: repo
+        run: |
+          git add -A
+          git diff --cached --binary > "$RUNNER_TEMP/entrega.patch"
+          cp "$RUNNER_TEMP/entrega.patch" "$RUNNER_TEMP/saida-agente.json" "$GITHUB_WORKSPACE/" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: entrega
+          path: |
+            entrega.patch
+            saida-agente.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  publicar:
+    needs: [orquestrar, agente]
+    if: always() && needs.orquestrar.outputs.tipo == 'AGENTE' && needs.agente.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: {name: entrega, path: "${{ runner.temp }}/entrega"}
+      - name: Conferir escopo e formato; aceitar ou recusar
+        working-directory: repo
+        run: |
+          git config user.name "spec2run[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          PATCH="$RUNNER_TEMP/entrega/entrega.patch"
+          if [ -s "$PATCH" ]; then git apply --index "$PATCH" || echo "patch não aplicável: entrega será recusada"; fi
+          set +e
+          python -P -m spec2run aceitar-entrega --repo . --tarefa "$TAREFA"
+          rc=$?
+          set -e
+          [ "$rc" = 0 ] || [ "$rc" = 3 ] || exit "$rc"
+          git add -A
+          git commit -q -m "s2r(#$TAREFA): entrega de ${{ needs.orquestrar.outputs.papel }} $([ "$rc" = 0 ] && echo aceita || echo recusada)"
+          git push -q origin "s2r/tarefa-$TAREFA"
+      - name: Disparar a próxima etapa
+        run: gh workflow run spec2run.yml --repo "$GITHUB_REPOSITORY" --ref main -f tarefa="$TAREFA"
+      - name: Avisar falha da publicação na issue
+        if: failure()
+        run: >-
+          gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body
+          "**Spec2Run Light:** a entrega do agente não foi publicada (conflito de push ou erro do GitHub).
+          Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID e rode Actions > spec2run > Run workflow (tarefa $TAREFA)." || true
+
+  maquina:
+    needs: orquestrar
+    if: needs.orquestrar.outputs.tipo == 'MAQUINA'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - name: Ferramentas de análise (versões fixadas, sha256 conferido)
+        working-directory: repo
+        run: bash "$GITHUB_WORKSPACE/_fl/.spec2run/preparar-maquina.sh"
+      - name: Rodar a etapa ${{ needs.orquestrar.outputs.etapa }}
+        working-directory: repo
+        run: python -P -m spec2run evidencia --repo . --tarefa "$TAREFA" --saida "$GITHUB_WORKSPACE/evidencia.json"
+      - uses: actions/upload-artifact@v4
+        with: {name: evidencia, path: evidencia.json, retention-days: 90}
+
+  registrar:
+    needs: [orquestrar, maquina]
+    if: always() && needs.orquestrar.outputs.tipo == 'MAQUINA'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Máquina não concluiu
+        if: needs.maquina.result != 'success'
+        run: |
+          gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** a etapa de máquina não terminou (erro de infraestrutura ou tempo esgotado). Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID e rode de novo em Actions > spec2run > Run workflow (tarefa $TAREFA)."
+          exit 1
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/download-artifact@v4
+        with: {name: evidencia, path: "${{ runner.temp }}/ev"}
+      - name: Reavaliar e registrar (não confia no resultado do job anterior)
+        working-directory: repo
+        run: |
+          git config user.name "spec2run[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python -P -m spec2run registrar-evidencia --repo . --tarefa "$TAREFA" --arquivo "$RUNNER_TEMP/ev/evidencia.json"
+          git add ".spec2run/tarefas/$TAREFA"
+          git commit -q -m "s2r(#$TAREFA): evidência ${{ needs.orquestrar.outputs.etapa }}"
+          git push -q origin "s2r/tarefa-$TAREFA"
+      - name: Disparar a próxima etapa
+        run: gh workflow run spec2run.yml --repo "$GITHUB_REPOSITORY" --ref main -f tarefa="$TAREFA"
+
+  gate:
+    # Roda quando uma PESSOA mexe no PR (push do GITHUB_TOKEN não dispara pull_request).
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Verificar o PR
+        working-directory: repo
+        run: |
+          S=failure; D="PR fora do Spec2Run Light"
+          if [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] && [[ "$HEAD_REF" =~ ^s2r/tarefa-([0-9]{1,9})$ ]]; then
+            if python -P -m spec2run verificar-pr --repo . --tarefa "${BASH_REMATCH[1]}" --base origin/main; then
+              S=success; D="tarefa revisada; merge liberado"
+            else
+              D="verificação do merge falhou; veja o job"
+            fi
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state="$S" -f context="spec2run/gate" -f description="$D" >/dev/null
+          [ "$S" = success ]
+
+  implantar:
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      github.event.pull_request.merged &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 's2r/tarefa-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: s2r-producao   # configure "Required reviewers" com você: é o gate L5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      # ⟦VALIDAR⟧ segredos de implantação do seu provedor, guardados no Environment s2r-producao:
+      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.merge_commit_sha }}", persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - name: Implantar, testar fumaça e reverter se falhar
+        run: |
+          N="${HEAD_REF#s2r/tarefa-}"
+          [[ "$N" =~ ^[0-9]{1,9}$ ]] || exit 2
+          c() { python3 -P -c "import json,sys;print(json.load(open('.spec2run/config.json'))['comandos'].get(sys.argv[1],{}).get('cmd',''))" "$1"; }
+          DEPLOY=$(c DEPLOY); SMOKE=$(c SMOKE); ROLLBACK=$(c ROLLBACK)
+          if [ -z "$DEPLOY" ]; then
+            gh issue comment "$N" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** merge feito; não há DEPLOY configurado, nada foi implantado."
+            exit 0
+          fi
+          R="ok"
+          bash -c "$DEPLOY" || R="deploy falhou"
+          if [ "$R" = ok ] && [ -n "$SMOKE" ]; then bash -c "$SMOKE" || R="teste de fumaça falhou"; fi
+          if [ "$R" != ok ] && [ -n "$ROLLBACK" ]; then bash -c "$ROLLBACK" && R="$R; rollback executado" || R="$R; ROLLBACK FALHOU"; fi
+          gh issue comment "$N" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light, implantação:** $R. Execução: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          [ "$R" = ok ]

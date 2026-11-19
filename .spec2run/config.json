@@ -1,0 +1,214 @@
+{
+ "versao": "1.0",
+ "dados_sensiveis": "PERMITIR_COM_ELEVADO",
+ "aprovar_testes": true,
+ "nivel_minimo": "ELEVADO",
+ "ids": {
+  "requisito": [
+   "REQ",
+   "RF",
+   "RNF"
+  ],
+  "criterio": [
+   "CA"
+  ],
+  "erro": [
+   "ERR"
+  ],
+  "regra": [
+   "RN"
+  ],
+  "prefixo_novo": "N",
+  "fonte_normativa": "docs/spec/REQ.md"
+ },
+ "orcamento": {
+  "moeda": "USD",
+  "limite_mensal_por_chave": 10.0,
+  "por_papel": {},
+  "_leia": "Valor de referência por chave de API. Para um papel ter outro limite, ponha em por_papel, ex.: {\"BUILDER\": 20.00}. O corte de verdade é configurado no console de cada fornecedor (Guia, seção 3)."
+ },
+ "humanos": [
+  "carlosyano"
+ ],
+ "papeis": {
+  "SPECIFIER": {
+   "fornecedor": "google",
+   "ferramenta": "gemini-cli",
+   "versao_ferramenta": "0.68.0",
+   "modelo": "<VALIDAR: modelo Gemini Pro>",
+   "variavel_chave": "GEMINI_API_KEY",
+   "ambiente": "s2r-specifier"
+  },
+  "ARCHITECT": {
+   "fornecedor": "anthropic",
+   "ferramenta": "claude-code",
+   "versao_ferramenta": "2.1.326",
+   "modelo": "claude-opus-5-5",
+   "variavel_chave": "ANTHROPIC_API_KEY",
+   "ambiente": "s2r-architect"
+  },
+  "TEST_DESIGNER": {
+   "fornecedor": "deepseek",
+   "ferramenta": "opencode",
+   "versao_ferramenta": "1.19.5",
+   "modelo": "deepseek/deepseek-reasoner",
+   "variavel_chave": "DEEPSEEK_API_KEY",
+   "ambiente": "s2r-test-designer"
+  },
+  "BUILDER": {
+   "fornecedor": "deepseek",
+   "ferramenta": "opencode",
+   "versao_ferramenta": "1.19.5",
+   "modelo": "deepseek/deepseek-chat",
+   "variavel_chave": "DEEPSEEK_API_KEY",
+   "ambiente": "s2r-builder"
+  },
+  "REVIEWER": {
+   "fornecedor": "anthropic",
+   "ferramenta": "claude-code",
+   "versao_ferramenta": "2.1.326",
+   "modelo": "claude-opus-5-5",
+   "variavel_chave": "ANTHROPIC_API_KEY",
+   "ambiente": "s2r-reviewer"
+  }
+ },
+ "ferramentas": {
+  "_leia": "Catálogo de CLIs de agente. Para usar outra IA, acrescente uma entrada e aponte o papel para ela. {versao} é obrigatório em instalar. Em executar: $PROMPT (ou o arquivo $PROMPT_ARQUIVO), $MODELO e $SAIDA vêm da máquina; o agente não pode ter shell.",
+  "gemini-cli": {
+   "instalar": "npm install -g @google/gemini-cli@{versao}",
+   "executar": "gemini -p \"$PROMPT\" -m \"$MODELO\" --approval-mode auto_edit --output-format json > \"$SAIDA\""
+  },
+  "claude-code": {
+   "instalar": "npm install -g @anthropic-ai/claude-code@{versao}",
+   "executar": "claude -p \"$PROMPT\" --model \"$MODELO\" --output-format json --allowedTools 'Read,Grep,Glob,Write,Edit' --disallowedTools 'Bash,WebFetch,WebSearch' > \"$SAIDA\""
+  },
+  "opencode": {
+   "instalar": "npm install -g opencode-ai@{versao}",
+   "executar": "printf '{\"permission\":{\"edit\":\"allow\",\"bash\":\"deny\",\"webfetch\":\"deny\"}}' > \"$RUNNER_TEMP/opencode.json\" && OPENCODE_CONFIG=\"$RUNNER_TEMP/opencode.json\" opencode run \"$PROMPT\" --model \"$MODELO\" > \"$SAIDA\""
+  }
+ },
+ "diversidade": [
+  {
+   "papeis": [
+    "SPECIFIER",
+    "REVIEWER"
+   ],
+   "modo": "BLOCK",
+   "motivo": "quem revisa a SPEC não pode ser do fornecedor que a escreveu"
+  },
+  {
+   "papeis": [
+    "BUILDER",
+    "REVIEWER"
+   ],
+   "modo": "BLOCK",
+   "motivo": "quem revisa o código não pode ser do fornecedor que o escreveu"
+  },
+  {
+   "papeis": [
+    "TEST_DESIGNER",
+    "BUILDER"
+   ],
+   "modo": "ADVISORY",
+   "motivo": "decisão do Carlos (ADR-18 da v4): DeepSeek testa e codifica; o RED e o hash dos testes compensam"
+  }
+ ],
+ "testes": {
+  "globs": [
+   "tests/**"
+  ],
+  "config_protegida": [
+   "vitest.config.ts",
+   "vitest.mutacao.config.ts",
+   "stryker.config.json"
+  ]
+ },
+ "protegidos": [
+  ".semgrepignore",
+  ".semgrep.yml",
+  ".semgrep/**",
+  ".gitleaks.toml",
+  ".gitleaksignore",
+  ".npmrc",
+  ".spectral.yaml",
+  "contracts/oasdiff-erros-aceitos.txt",
+  "eslint.config.js",
+  "**/tsconfig*.json",
+  "**/vitest*.config.*",
+  "**/eslint.config.*",
+  "**/stryker*.json",
+  "apps/api/src/test-harness.ts",
+  "docs/spec/**",
+  "docs/architecture/**",
+  "registros/**"
+ ],
+ "ferramentas_maquina": {
+  "semgrep": "1.182.1"
+ },
+ "comandos": {
+  "PREPARAR": {
+   "cmd": "npm ci --no-audit --no-fund && npm run build"
+  },
+  "BUILD": {
+   "cmd": "npm run build"
+  },
+  "LINT": {
+   "cmd": "npm run lint"
+  },
+  "TIPOS": {
+   "cmd": "npm run typecheck:tests"
+  },
+  "CONSISTENCIA": {
+   "cmd": "python3 -m pip install --quiet pyyaml==6.0.2 && python3 tools/gerar_registros.py --check && python3 tools/validar_consistencia.py"
+  },
+  "CONTRATO": {
+   "cmd": "npm run lint:spec"
+  },
+  "TESTES": {
+   "cmd": "NO_COLOR=1 npx --no-install vitest run --reporter=default",
+   "cmd_arquivos": "NO_COLOR=1 npx --no-install vitest run --reporter=default {arquivos}",
+   "regex_falhas": "Tests\\s+(\\d+) failed",
+   "regex_aprovados": "Tests\\s+(?:\\d+ failed \\| )?(\\d+) passed",
+   "regex_arquivos_falhos": "Test Files\\s+(\\d+) failed",
+   "regex_falta_codigo": "Failed to (?:load url|resolve import)|Cannot find module|does not provide an export named"
+  },
+  "SAST": {
+   "cmd": "semgrep scan --config p/typescript --config p/nodejs --config p/secrets --error --disable-nosem --metrics=off apps packages"
+  },
+  "SEGREDOS": {
+   "cmd": "docker run --rm -v \"$PWD:/repo\" zricethezav/gitleaks:v8.28.0 git /repo --redact --exit-code 1"
+  },
+  "DEPENDENCIAS": {
+   "cmd": "npm audit --omit=dev --audit-level=high"
+  },
+  "MUTACAO": {
+   "cmd": "npm run test:mutacao",
+   "cmd_arquivos": "npm run test:mutacao -- --mutate {arquivos}",
+   "mutaveis": [
+    "apps/api/src/regras/**",
+    "apps/api/src/infra/cripto.ts",
+    "packages/motor-leitura/src/**"
+   ],
+   "_leia": "Com nível ELEVADO, muta o código que o BUILDER alterou dentro de 'mutaveis'; se ele não alterou nenhum desses, roda o cmd com a lista fixa do stryker.config.json."
+  },
+  "DEPLOY": {
+   "cmd": ""
+  },
+  "SMOKE": {
+   "cmd": ""
+  },
+  "ROLLBACK": {
+   "cmd": ""
+  }
+ },
+ "limites": {
+  "tentativas_por_papel": 3,
+  "timeout_comando_s": 900
+ },
+ "ci_do_repositorio": "ci.yml",
+ "green_extra": [
+  "TIPOS",
+  "CONSISTENCIA",
+  "CONTRATO"
+ ]
+}

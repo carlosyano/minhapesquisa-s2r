@@ -8,6 +8,9 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
+  # Spec2Run Light (P3 A): o orquestrador dispara o CI no PR da tarefa, porque o push feito
+  # pelo token do Actions não dispara outros workflows.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -77,9 +80,12 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           IA_TEST: ${{ contains(github.event.pull_request.labels.*.name, 'ia-test') }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           alterados=$(git diff --name-only "$BASE_SHA"...HEAD -- tests vitest.config.ts)
-          if [ -n "$alterados" ] && [ "$IA_TEST" != "true" ]; then
+          # Tarefa do Spec2Run Light: você aprova os testes no próprio Light (/s2r aprovar testes,
+          # P2 A) e o check spec2run/gate confere que eles não mudaram depois disso.
+          if [ -n "$alterados" ] && [ "$IA_TEST" != "true" ] && [[ ! "$HEAD_REF" =~ ^s2r/tarefa-[0-9]+$ ]]; then
             echo "::error::Este PR altera testes aprovados (DEC-053) sem o rótulo ia-test:"
             echo "$alterados"
             exit 1
