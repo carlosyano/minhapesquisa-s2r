@@ -22,6 +22,9 @@
 // - Exportação: as tarefas da `tarefa_exportacao` e o expurgo dos arquivos vencidos rodam no mesmo
 //   ciclo e relógio (DEC-165, exportacao/worker.ts).
 //
+// - Importação: o job diário apaga o resto dos arquivos de importações terminadas no primeiro ciclo
+//   de cada dia civil (RF-016, DEC-237, manutencao/limpeza-importacao.ts).
+//
 // Nada do conteúdo lido entra no log (RN-028): só IDs, página e resultado.
 
 import { ErroLeitura, type GabaritoPagina, type PerguntasPorPagina, type ReadEngine, type ResultadoIdentificacao, type ResultadoLeitura, type TipoCampo } from '@minhapesquisa/motor-leitura';
@@ -50,6 +53,8 @@ import {
   type Regiao,
 } from './dominio.js';
 import { WorkerExportacao } from '../exportacao/worker.js';
+import { AgendadorDiario } from '../manutencao/agendador-diario.js';
+import { LimpezaImportacao } from '../manutencao/limpeza-importacao.js';
 import { WorkerImportacao } from './importacao.js';
 
 /** Esperas antes da 2ª e da 3ª chamada (REQ §6.6, DEC-129); depois da 3ª falha, erro_leitura. */
@@ -138,10 +143,13 @@ const sistema = (tenantId: string) => ({ tenantId, usuarioId: null, ip: null });
 export class WorkerLeitura {
   private readonly importacao: WorkerImportacao;
   private readonly exportacao: WorkerExportacao;
+  private readonly agendador: AgendadorDiario;
 
   constructor(private readonly n: Nucleo) {
     this.importacao = new WorkerImportacao(n);
     this.exportacao = new WorkerExportacao(n);
+    const limpeza = new LimpezaImportacao(n);
+    this.agendador = new AgendadorDiario(n, () => limpeza.executar());
   }
 
   /** Roda o que já venceu: despacho do outbox, retomada da cota e tarefas, até não sobrar nada. */
@@ -154,6 +162,8 @@ export class WorkerLeitura {
 
   /** Só as tarefas já criadas que venceram no relógio (retentativas), sem despachar nada novo. */
   async executarVencidas(): Promise<number> {
+    // O job diário de limpeza da importação roda no mesmo ciclo de manutenção (IMP-011, DEC-237).
+    await this.agendador.tick();
     return (await this.executarLeituras()) + (await this.importacao.executarVencidas()) + (await this.exportacao.executarVencidas());
   }
 
