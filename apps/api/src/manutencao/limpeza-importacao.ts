@@ -46,10 +46,11 @@ export class LimpezaImportacao {
         apagados += r.apagados;
         if (r.falha) falhas += 1;
       } catch (e) {
-        // Uma importação nunca interrompe as demais (CA-068, ERR-046).
+        // Uma importação nunca interrompe as demais (CA-068, ERR-046). Sem contagem medida,
+        // o log não afirma apagados nem restantes.
         falhas += 1;
         this.n.log(
-          `import_cleanup_failed tenant_id=${i.tenant_id} importacao_id=${i.id} apagados=0 restantes=0 erro=${e instanceof Error ? e.name : 'erro'}`,
+          `import_cleanup_failed tenant_id=${i.tenant_id} importacao_id=${i.id} erro=${e instanceof Error ? e.name : 'erro'}`,
         );
       }
     }
@@ -111,9 +112,10 @@ export class LimpezaImportacao {
         }),
       );
     } catch (e) {
-      // Banco fora: fica só o log, com o nome da classe (ERR-046, RN-028).
+      // Banco fora: a falha principal já foi registrada uma única vez; a da auditoria sai com
+      // outro evento, só com identificadores e o nome da classe (ERR-046, RN-028).
       this.n.log(
-        `import_cleanup_failed tenant_id=${i.tenant_id} importacao_id=${i.id} apagados=${apagados} restantes=${restantes} erro=${e instanceof Error ? e.name : 'erro'}`,
+        `import_cleanup_audit_failed tenant_id=${i.tenant_id} importacao_id=${i.id} erro=${e instanceof Error ? e.name : 'erro'}`,
       );
     }
     return { apagados, falha: true };

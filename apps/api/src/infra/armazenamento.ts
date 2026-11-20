@@ -97,6 +97,11 @@ interface FalhaApagar {
 let ultimoArmazenamento: ArmazenamentoEmMemoria | undefined;
 const falhasApagar: FalhaApagar[] = [];
 
+/** Registra a instância para os ganchos de teste, sem copiar o `this` para uma variável. */
+function registrarArmazenamento(armazenamento: ArmazenamentoEmMemoria): void {
+  ultimoArmazenamento = armazenamento;
+}
+
 /** Grava bytes sintéticos na chave dada, no armazenamento em memória mais recente do teste. */
 export async function plantarObjeto(chave: string, conteudo = 'objeto sintético de teste'): Promise<void> {
   if (!ultimoArmazenamento) throw new Error('nenhum ArmazenamentoEmMemoria iniciado');
@@ -125,7 +130,7 @@ export class ArmazenamentoEmMemoria implements Armazenamento {
   }
 
   iniciar(): Promise<void> {
-    ultimoArmazenamento = this;
+    registrarArmazenamento(this);
     return this.links.iniciar();
   }
 

@@ -163,7 +163,12 @@ export class WorkerLeitura {
   /** Só as tarefas já criadas que venceram no relógio (retentativas), sem despachar nada novo. */
   async executarVencidas(): Promise<number> {
     // O job diário de limpeza da importação roda no mesmo ciclo de manutenção (IMP-011, DEC-237).
-    await this.agendador.tick();
+    try {
+      await this.agendador.tick();
+    } catch (e) {
+      // Uma falha geral do job não interrompe as leituras, a importação e a exportação (ERR-046).
+      this.n.log(`limpeza_importacao_erro erro=${e instanceof Error ? e.name : 'erro'}`);
+    }
     return (await this.executarLeituras()) + (await this.importacao.executarVencidas()) + (await this.exportacao.executarVencidas());
   }
 
