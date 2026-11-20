@@ -1,0 +1,2 @@
+tests/integracao/manutencao/limpeza-importacao.test.ts
+tests/integracao/manutencao/agendador-diario.test.ts
