@@ -61,6 +61,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      # O pacote @minhapesquisa/api exporta ./dist; sem o build, tests/support que importa o pacote
+      # não resolve o módulo no typecheck (achado do piloto Spec2Run, F-21).
+      - name: Build dos pacotes (para o typecheck dos testes)
+        run: npm run build
       - name: Typecheck dos testes
         run: npm run typecheck:tests
       - name: Build e testes (Vitest; integração com PostgreSQL 17 via Testcontainers)
