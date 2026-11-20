@@ -221,6 +221,9 @@ def cmd_verificar_pr(args):
     desde_green = []
     if st.commit_green:
         desde_green = _git(args.repo, "diff", "--name-only", "--no-renames", st.commit_green, "HEAD").split()
+        # DL-47: arquivo que só mudou porque a main foi trazida para a branch (o PR não o altera)
+        # não é mudança da tarefa depois do GREEN.
+        desde_green = core.so_do_pr(desde_green, no_pr)
     core.verificar_pr(args.repo, d, cfg, desde_green, no_pr)
     print("merge liberado")
 
