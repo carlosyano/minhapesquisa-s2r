@@ -1152,6 +1152,17 @@ def _iso(t: str) -> str:
 
 
 # ----------------------------------------------------------------------------- portão do PR
+def so_do_pr(desde_green: list[str], no_pr: list[str]) -> list[str]:
+    """Das mudanças desde o GREEN, só as que o PR faz em relação à main (DL-47).
+
+    Por que: atualizar a branch com a main depois do GREEN traz arquivos de outras mudanças
+    (ex.: um ajuste de CI) que diferem do commit do GREEN, mas não são da tarefa. O PR contra a
+    main não os altera, então não entram. Arquivo que o PR altera e que mudou depois do GREEN
+    continua bloqueado."""
+    pr = set(no_pr)
+    return [c for c in desde_green if c in pr]
+
+
 def verificar_pr(repo: str, tarefa_dir: str, cfg: dict, alterados_desde_green: list[str],
                  alterados_no_pr: list[str]) -> None:
     """Check obrigatório da proteção da main. Passa só se a tarefa chegou a REVISADO e
