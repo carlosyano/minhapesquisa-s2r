@@ -87,6 +87,39 @@ export class ServidorLinks {
   }
 }
 
+/** Falha simulada do `apagar` para as chaves com o prefixo, usada só pelos testes (CA-068, ERR-046). */
+interface FalhaApagar {
+  prefixo: string;
+  nome: string;
+  mensagem?: string;
+}
+
+let ultimoArmazenamento: ArmazenamentoEmMemoria | undefined;
+const falhasApagar: FalhaApagar[] = [];
+
+/** Registra a instância para os ganchos de teste, sem copiar o `this` para uma variável. */
+function registrarArmazenamento(armazenamento: ArmazenamentoEmMemoria): void {
+  ultimoArmazenamento = armazenamento;
+}
+
+/** Grava bytes sintéticos na chave dada, no armazenamento em memória mais recente do teste. */
+export async function plantarObjeto(chave: string, conteudo = 'objeto sintético de teste'): Promise<void> {
+  if (!ultimoArmazenamento) throw new Error('nenhum ArmazenamentoEmMemoria iniciado');
+  await ultimoArmazenamento.gravar(chave, Buffer.from(conteudo), 'application/octet-stream');
+}
+
+/** Faz todo `apagar` de chave com o prefixo rejeitar até `desfalharApagar` (CA-068, ERR-046). */
+export function falharApagar(prefixo: string, opts: { nome?: string; mensagem?: string } = {}): void {
+  falhasApagar.push({ prefixo, nome: opts.nome ?? 'ErroArmazenamento', ...(opts.mensagem === undefined ? {} : { mensagem: opts.mensagem }) });
+}
+
+/** Remove a falha simulada do prefixo (ou todas, sem prefixo). */
+export function desfalharApagar(prefixo?: string): void {
+  for (let i = falhasApagar.length - 1; i >= 0; i--) {
+    if (prefixo === undefined || falhasApagar[i].prefixo === prefixo) falhasApagar.splice(i, 1);
+  }
+}
+
 /** Implementação em memória, só para testes. */
 export class ArmazenamentoEmMemoria implements Armazenamento {
   private readonly objetos = new Map<string, { bytes: Buffer; tipo: string }>();
@@ -97,6 +130,7 @@ export class ArmazenamentoEmMemoria implements Armazenamento {
   }
 
   iniciar(): Promise<void> {
+    registrarArmazenamento(this);
     return this.links.iniciar();
   }
 
@@ -115,6 +149,12 @@ export class ArmazenamentoEmMemoria implements Armazenamento {
   }
 
   async apagar(chave: string): Promise<void> {
+    for (const falha of falhasApagar) {
+      if (!chave.startsWith(falha.prefixo)) continue;
+      const erro = new Error(falha.mensagem ?? `falha simulada ao apagar ${chave}`);
+      erro.name = falha.nome;
+      throw erro;
+    }
     this.objetos.delete(chave);
   }
 

@@ -1,0 +1,96 @@
+{
+  "etapa": "GREEN",
+  "commit": "e453ffa47332847323439044eec5d3351cf7711b",
+  "nivel": "ELEVADO",
+  "passos": [
+    {
+      "nome": "PREPARAR",
+      "cmd": "npm ci --no-audit --no-fund && npm run build",
+      "codigo_saida": 0,
+      "duracao_s": 30.9,
+      "saida_sha256": "1be8fc282027cf25bac76809fe610acfb6a9311b916ee18f2849b7165891ac19",
+      "saida_final": "npm warn deprecated sourcemap-codec@1.4.8: Please use @jridgewell/sourcemap-codec instead\nnpm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.\nnpm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me\nnpm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me\nnpm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.\n\nadded 775 packages in 26s\nnpm warn install-scripts 4 packages have install scripts not yet covered by allowScripts:\nnpm warn install-scripts   @scarf/scarf@1.4.0 (postinstall: node ./report.js)\nnpm warn install-scripts   cpu-features@0.0.10 (install: node buildcheck.js > buildcheck.gypi && node-gyp rebuild)\nnpm warn install-scripts   protobufjs@7.6.6 (postinstall: node scripts/postinstall)\nnpm warn install-scripts   ssh2@1.17.0 (install: node install.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.\n\n> minhapesquisa@0.1.0 build\n> npm run build -w @minhapesquisa/db && npm run build -w @minhapesquisa/motor-leitura && npm run build -w @minhapesquisa/api\n\n\n> @minhapesquisa/db@0.1.0 build\n> tsc -p tsconfig.json\n\n\n> @minhapesquisa/motor-leitura@0.1.0 build\n> tsc -p tsconfig.json\n\n\n> @minhapesquisa/api@0.1.0 build\n> tsc -p tsconfig.json\n\n"
+    },
+    {
+      "nome": "BUILD",
+      "cmd": "npm run build",
+      "codigo_saida": 0,
+      "duracao_s": 4.3,
+      "saida_sha256": "8f07a0ccb57f0246dcf9cec03e33cd77266386ebf40aeb225edb10e1fb5bf1b2",
+      "saida_final": "\n> minhapesquisa@0.1.0 build\n> npm run build -w @minhapesquisa/db && npm run build -w @minhapesquisa/motor-leitura && npm run build -w @minhapesquisa/api\n\n\n> @minhapesquisa/db@0.1.0 build\n> tsc -p tsconfig.json\n\n\n> @minhapesquisa/motor-leitura@0.1.0 build\n> tsc -p tsconfig.json\n\n\n> @minhapesquisa/api@0.1.0 build\n> tsc -p tsconfig.json\n\n"
+    },
+    {
+      "nome": "LINT",
+      "cmd": "npm run lint",
+      "codigo_saida": 0,
+      "duracao_s": 2.3,
+      "saida_sha256": "d5ac836248130e5176c0b39aaa6120a43de83274926dc92bba15df6ab1542877",
+      "saida_final": "\n> minhapesquisa@0.1.0 lint\n> eslint .\n\n"
+    },
+    {
+      "nome": "TESTES",
+      "cmd": "NO_COLOR=1 npx --no-install vitest run --reporter=default",
+      "codigo_saida": 0,
+      "duracao_s": 535.4,
+      "saida_sha256": "05d573b718625e5832a3012932df71218e0ab6e404c2faa41aab7af42f621389",
+      "saida_final": "ts/integracao/leitura/pagina-inteira.test.ts (4 tests) 4371ms\n     ✓ a leitura recebe a página inteira com o gabarito das perguntas da página 1 (e a assinatura só nela)  416ms\n     ✓ CPF e data voltam com valor, confiança e região, e nenhum vai a a_revisar por estar perto do outro  364ms\n     ✓ o estado de cada item segue a confiança e a validação: CPF inválido ou confiança baixa vai a a_revisar, o vizinho não  748ms\n ✓ tests/support/planilha.test.ts (4 tests) 7ms\n ✓ tests/integracao/leitura/falha.test.ts (7 tests) 8383ms\n     ✓ tempo_esgotado em duas tentativas e sucesso na seguinte → em_revisao  796ms\n     ✓ erro em duas tentativas e sucesso na seguinte → em_revisao  746ms\n     ✓ malformada em duas tentativas e sucesso na seguinte → em_revisao  783ms\n     ✓ falha persistente → erro_leitura na terceira falha, com auditoria; exatamente 3 chamadas  801ms\n     ✓ erro_leitura → 202 em_leitura; a nova leitura termina em em_revisao  744ms\n     ✓ retryReading fora de erro_leitura → 409 ERR-018, sem nova leitura  715ms\n     ✓ retryReading com a leitura ainda em andamento (em_leitura) → 409 ERR-018  609ms\n ✓ tests/unit/defender.test.ts (17 tests) 13ms\n ✓ tests/integracao/projetos/ciclo-coleta.test.ts (4 tests) 2533ms\n ✓ tests/integracao/auth/redefinicao-senha.test.ts (6 tests) 12000ms\n     ✓ troca a senha e encerra todas as sessões ativas  2722ms\n     ✓ a redefinição fica na auditoria e nem a auditoria nem o terminal mostram a senha  1425ms\n     ✓ nova senha curta é recusada: a senha e as sessões ficam como estavam  1708ms\n     ✓ nova senha sem maiúscula é recusada: a senha e as sessões ficam como estavam  1688ms\n     ✓ nova senha sem dígito é recusada: a senha e as sessões ficam como estavam  1374ms\n     ✓ sem instalação não há conta a redefinir  3082ms\n ✓ tests/integracao/auth/instalacao.test.ts (7 tests) 11807ms\n     ✓ cria o único tenant e a conta; a usuária já entra com a senha, sem MFA  2634ms\n     ✓ rodar a instalação de novo é recusado, sem alterar nada  1432ms\n     ✓ senha curta é recusada, sem criar nada  1666ms\n     ✓ senha sem maiúscula é recusada, sem criar nada  1542ms\n     ✓ senha sem minúscula é recusada, sem criar nada  1343ms\n     ✓ senha sem dígito é recusada, sem criar nada  1652ms\n     ✓ senha longa demais é recusada, sem criar nada  1536ms\n ✓ tests/unit/cripto.test.ts (16 tests) 54ms\n ✓ tests/support/arquivos.test.ts (4 tests) 2766ms\n     ✓ lerPdf lê o QR e o texto de cada página  450ms\n     ✓ semQr torna o QR ilegível; comQr troca o conteúdo; conteudoForjado mantém o formato  671ms\n     ✓ tamanhos e páginas dos arquivos de limite  1445ms\n ✓ tests/unit/qr.test.ts (18 tests) 13ms\n ✓ tests/unit/cpf.test.ts (17 tests) 9ms\n ✓ tests/unit/marcadores.test.ts (4 tests) 25ms\n ✓ tests/unit/autorizacao.test.ts (3 tests) 3ms\n ✓ tests/support/apoio.test.ts (2 tests) 3ms\n\n Test Files  47 passed (47)\n      Tests  762 passed (762)\n   Start at  21:09:52\n   Duration  534.93s (transform 831ms, setup 0ms, import 7.39s, tests 523.30s, environment 3ms)\n\n"
+    },
+    {
+      "nome": "SAST",
+      "cmd": "semgrep scan --config p/typescript --config p/nodejs --config p/secrets --error --disable-nosem --metrics=off apps packages",
+      "codigo_saida": 0,
+      "duracao_s": 4.1,
+      "saida_sha256": "3abf744e316cd35961daa656a28f0bc2bd36be19253bb6298d7ad0b08891d39b",
+      "saida_final": "               \n               \n┌─────────────┐\n│ Scan Status │\n└─────────────┘\n  Scanning 84 files tracked by git with 121 Code rules:\n                                                                                                                        \n  Language      Rules   Files          Origin      Rules                                                                \n ─────────────────────────────        ───────────────────                                                               \n  <multilang>      36      84          Community     121                                                                \n  ts               74      55                                                                                           \n                                                                                                                        \n                \n                \n┌──────────────┐\n│ Scan Summary │\n└──────────────┘\n✅ Scan completed successfully.\n • Findings: 0 (0 blocking)\n • Rules run: 110\n • Targets scanned: 84\n • Parsed lines: ~100.0%\n • Scan was limited to files tracked by git\n • For a detailed list of skipped files and lines, run semgrep with the --verbose flag\nRan 110 rules on 84 files: 0 findings.\n(need more rules? `semgrep login` for additional free Semgrep Registry rules)\n\n\nA new version of Semgrep is available. See https://semgrep.dev/docs/upgrading\nIf Semgrep missed a finding, please send us feedback to let us know!\nSee https://semgrep.dev/docs/reporting-false-negatives/\n"
+    },
+    {
+      "nome": "SEGREDOS",
+      "cmd": "docker run --rm -v \"$PWD:/repo\" zricethezav/gitleaks:v8.28.0 git /repo --redact --exit-code 1",
+      "codigo_saida": 0,
+      "duracao_s": 5.0,
+      "saida_sha256": "bc51f026ededf5ea33e5a47dc617151afb21074acc3d5c01a4859e9640c3a177",
+      "saida_final": "Unable to find image 'zricethezav/gitleaks:v8.28.0' locally\nv8.28.0: Pulling from zricethezav/gitleaks\n1747dece9491: Pulling fs layer\ndaed8b4062ea: Pulling fs layer\ne590f02e913a: Pulling fs layer\n91da3791a8e8: Pulling fs layer\n91da3791a8e8: Waiting\n1747dece9491: Verifying Checksum\n1747dece9491: Download complete\ndaed8b4062ea: Verifying Checksum\ndaed8b4062ea: Download complete\ne590f02e913a: Verifying Checksum\ne590f02e913a: Download complete\n1747dece9491: Pull complete\n91da3791a8e8: Verifying Checksum\n91da3791a8e8: Download complete\ndaed8b4062ea: Pull complete\ne590f02e913a: Pull complete\n91da3791a8e8: Pull complete\nDigest: sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854\nStatus: Downloaded newer image for zricethezav/gitleaks:v8.28.0\n\n    ○\n    │╲\n    │ ○\n    ○ ░\n    ░    gitleaks\n\n\u001b[90m9:18PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1m181 commits scanned.\u001b[0m\n\u001b[90m9:18PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~5551401 bytes (5.55 MB) in 886ms\u001b[0m\n\u001b[90m9:18PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n"
+    },
+    {
+      "nome": "DEPENDENCIAS",
+      "cmd": "npm audit --omit=dev --audit-level=high",
+      "codigo_saida": 0,
+      "duracao_s": 0.4,
+      "saida_sha256": "6d8c5c8f3d7684adb070417bd608d01ae90aa3dc26a65af03ffda4955f38d9a3",
+      "saida_final": "found 0 vulnerabilities\n"
+    },
+    {
+      "nome": "TIPOS",
+      "cmd": "npm run typecheck:tests",
+      "codigo_saida": 0,
+      "duracao_s": 2.5,
+      "saida_sha256": "c771372dcb58980d4d3b8aae2acc0cd1049089c220552ae410ee8f18b4571b54",
+      "saida_final": "\n> minhapesquisa@0.1.0 typecheck:tests\n> tsc -p tests\n\n"
+    },
+    {
+      "nome": "CONSISTENCIA",
+      "cmd": "python3 -m pip install --quiet pyyaml==6.0.2 && python3 tools/gerar_registros.py --check && python3 tools/validar_consistencia.py",
+      "codigo_saida": 0,
+      "duracao_s": 1.5,
+      "saida_sha256": "6310eeb3d192c1dcf9b278381cc9433b78451ce0e5ab82b2e9eb3ce7ac9f1e81",
+      "saida_final": "OK: registros CSV coerentes com REQ e PLANO.\nOK: nenhuma inconsistência detectada pelos cruzamentos automáticos.\n"
+    },
+    {
+      "nome": "CONTRATO",
+      "cmd": "npm run lint:spec && base=\"$(mktemp -d)\" && git show origin/main:contracts/openapi.yaml > \"$base/openapi-base.yaml\" && docker run --rm -v \"$base:/base:ro\" -v \"$PWD/contracts:/head:ro\" tufin/oasdiff:v1.11.7 breaking /base/openapi-base.yaml /head/openapi.yaml --fail-on ERR --err-ignore /head/oasdiff-erros-aceitos.txt",
+      "codigo_saida": 0,
+      "duracao_s": 2.4,
+      "saida_sha256": "6c6e77c8158a9de841a8fb3a1904baef7aea5499a08f8afa82aaa259475d5b92",
+      "saida_final": "\n> minhapesquisa@0.1.0 lint:spec\n> spectral lint contracts/openapi.yaml\n\nNo results with a severity of 'error' found!\nUnable to find image 'tufin/oasdiff:v1.11.7' locally\nv1.11.7: Pulling from tufin/oasdiff\n9824c27679d3: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4b5697e84f3f: Pulling fs layer\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n9824c27679d3: Verifying Checksum\n9824c27679d3: Download complete\n4b5697e84f3f: Verifying Checksum\n4b5697e84f3f: Download complete\n9824c27679d3: Pull complete\n4f4fb700ef54: Pull complete\n4b5697e84f3f: Pull complete\nDigest: sha256:d6f1e645251cc1da527311955347d8ce8bd2b7ed09bcce07176b2577b8daf19c\nStatus: Downloaded newer image for tufin/oasdiff:v1.11.7\n\n"
+    },
+    {
+      "nome": "MUTACAO",
+      "cmd": "npm run test:mutacao",
+      "codigo_saida": 0,
+      "duracao_s": 11.9,
+      "saida_sha256": "6d9e8e1b7b0436a3648d0d4551efc02d9a5e677a1e2ccea0e8969f2ac66f5085",
+      "saida_final": "1) throw new ErroApi('ERR-001', { campos: [\"\"] });\nTests ran:\n    paginação (PLANO §5.1) padrão 20, máximo 100, página ≥ 1\n\n\n[Survived] EqualityOperator\napps/api/src/regras/autorizacao.ts:30:36\n-     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: ['limite'] });\n+     if (!Number.isInteger(limite) || limite <= 1 || limite > 100) throw new ErroApi('ERR-001', { campos: ['limite'] });\nTests ran:\n    paginação (PLANO §5.1) padrão 20, máximo 100, página ≥ 1\n\n\n[Survived] ObjectLiteral\napps/api/src/regras/autorizacao.ts:30:93\n-     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: ['limite'] });\n+     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', {});\nTests ran:\n    paginação (PLANO §5.1) padrão 20, máximo 100, página ≥ 1\n\n\n[Survived] ArrayDeclaration\napps/api/src/regras/autorizacao.ts:30:103\n-     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: ['limite'] });\n+     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: [] });\nTests ran:\n    paginação (PLANO §5.1) padrão 20, máximo 100, página ≥ 1\n\n\n[Survived] StringLiteral\napps/api/src/regras/autorizacao.ts:30:104\n-     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: ['limite'] });\n+     if (!Number.isInteger(limite) || limite < 1 || limite > 100) throw new ErroApi('ERR-001', { campos: [\"\"] });\nTests ran:\n    paginação (PLANO §5.1) padrão 20, máximo 100, página ≥ 1\n\n\nRan 1.86 tests per mutant on average.\n-----------------|------------------|----------|-----------|------------|----------|----------|\n                 | % Mutation score |          |           |            |          |          |\nFile             |  total | covered | # killed | # timeout | # survived | # no cov | # errors |\n-----------------|--------|---------|----------|-----------|------------|----------|----------|\nAll files        |  83.33 |   86.78 |      105 |         0 |         16 |        5 |        0 |\n infra           |  82.35 |   88.89 |       56 |         0 |          7 |        5 |        0 |\n  cripto.ts      |  82.35 |   88.89 |       56 |         0 |          7 |        5 |        0 |\n regras          |  84.48 |   84.48 |       49 |         0 |          9 |        0 |        0 |\n  autorizacao.ts |  84.48 |   84.48 |       49 |         0 |          9 |        0 |        0 |\n-----------------|--------|---------|----------|-----------|------------|----------|----------|\n\u001b[32m21:19:15 (65210) INFO MutationTestReportHelper\u001b[39m Final mutation score of 83.33 is greater than or equal to break threshold 80\n\u001b[32m21:19:15 (65210) INFO HtmlReporter\u001b[39m Your report can be found at: file:///home/runner/work/minhapesquisa-s2r/minhapesquisa-s2r/repo/reports/mutacao/index.html\n\u001b[32m21:19:15 (65210) INFO MutationTestExecutor\u001b[39m Done in 11 seconds.\n"
+    }
+  ],
+  "em": "2026-11-20T21:19:15+00:00"
+}

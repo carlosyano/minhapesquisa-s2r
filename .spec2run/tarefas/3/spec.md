@@ -1,0 +1,33 @@
+# SPEC: Job diário de limpeza de arquivos de importação (F-21)
+
+Nível: ELEVADO
+Dados: SINTETICO
+
+## Contexto
+A importação de formulário (RF-011, FL-004) grava os arquivos enviados em `tenant/<tenant>/importacao/<importação>/` e os apaga ao fim, quando a importação chega a `concluida` ou `falhou` (PLANO §4.8, DEC-142); quando essa exclusão falha, os arquivos sobram. O achado F-21 do PLANO §12.3 previa um job diário para apagar esse resto; o responsável decidiu mantê-lo separado do expurgo da RN-030 (DEC-237), e a CHG-020 o definiu como RF-016 (RN-053 a RN-055, CA-064 a CA-070, ERR-046). Os arquivos são formulários-modelo sem dado pessoal (DEC-133), mas o job varre a pasta de vários tenants e escreve em log e auditoria, o que exige isolamento por tenant e cuidado com o que é registrado (RN-028).
+
+## Requisitos
+- RF-016 [FUNCIONAL][MUST][USUARIO] O sistema apaga, uma vez por dia e sem intervenção da usuária, os arquivos que sobraram na pasta `tenant/<tenant>/importacao/<importação>/` de toda importação em estado final (`concluida` ou `falhou`), escolhida pelo estado gravado no banco; grava `chave_storage` NULL ao terminar; é reaplicável; e registra em log e auditoria só identificadores e contagens (RN-028).
+
+## Regras de negócio
+- RN-053 — Quais importações o job diário limpa (DEC-237): (1) apaga os arquivos que sobraram só das importações em estado final, `concluida` ou `falhou` (FL-004), que não voltam atrás — uma nova tentativa é um novo envio, com outro identificador; (2) nunca apaga importação em `enfileirada`, `aguardando_cota` ou `em_andamento`, e a `aguardando_cota` pode ficar parada por dias, até a virada do mês (FL-004), continuando intacta; (3) só entra a importação cujo estado final está gravado no banco, e a lista de estados que o job apaga é fechada — um estado novo ou inesperado nunca é apagado; (4) depois de apagar tudo da importação, grava `chave_storage` NULL se ainda não estiver, sem mudar o estado, `concluida_em`, o aviso nem o formulário criado.
+- RN-054 — Onde o job pode apagar (DEC-237): (1) apaga somente dentro de `tenant/<tenant>/importacao/<importação>/`, com o caminho montado a partir do tenant e do identificador da ImportacaoFormulario no banco, nunca a partir de nome lido do armazenamento; (2) nunca apaga pasta de aplicação, de exportação ou de outro tenant, nem pasta sem registro de importação no banco; (3) acha o resto pela pasta derivada do identificador, sem depender do `chave_storage` (o worker já o deixa NULL ao fim da importação, antes da exclusão, e por isso ele não indica resto).
+- RN-055 — O que o job registra (DEC-237, RN-028): (1) log e auditoria trazem só identificadores e contagens — nunca nome de arquivo, caminho, conteúdo nem mensagem de erro do sistema, e no erro o log traz só o nome da classe do erro; (2) a importação que tinha arquivo a apagar é auditada (ação `LIMPEZA_IMPORTACAO`, entidade ImportacaoFormulario, ator de sistema) com o tenant, o identificador, a quantidade apagada e a quantidade que restou, e a importação sem nada a apagar não gera auditoria; (3) a execução do dia gera um único log com as contagens (importações verificadas, arquivos apagados e falhas).
+
+## Critérios de aceite
+- CA-064 (RF-016) Dado que o tenant "A" tem a importação "Hábitos" em `concluida` e a importação "Idosos" em `falhou`, cada uma com uma página `1.jpg` ainda na pasta `tenant/<tenant>/importacao/<importação>/` Quando o job diário executa Então as duas pastas ficam sem arquivo, a `chave_storage` das duas fica NULL e o estado de cada importação não muda.
+- CA-065 (RF-016) Dado que o tenant tem importações nos estados `enfileirada`, `aguardando_cota` e `em_andamento`, cada uma com `1.jpg` na sua pasta Quando o job diário executa Então os arquivos continuam presentes e o estado de cada importação não muda.
+- CA-066 (RF-016) Dado que o tenant "A" tem, ao lado da importação `concluida`, arquivos de aplicação, arquivos de exportação e uma pasta `tenant/<tenant>/importacao/<id sem registro>/` com `1.jpg`, e que o tenant "B" tem os próprios arquivos Quando o job diário executa Então só os arquivos da pasta da importação `concluida` são apagados, e os arquivos de aplicação e de exportação do tenant "A", a pasta sem registro de importação e os arquivos do tenant "B" continuam presentes.
+- CA-067 (RF-016) Dado que o job diário já apagou o resto de todas as importações terminadas Quando o job executa de novo em seguida, ou a pasta de uma importação terminada não existe mais Então a execução termina sem erro, sem apagar nada e sem auditar importação.
+- CA-068 (RF-016) Dado que o armazenamento falha ao apagar a pasta da importação "Hábitos" (tenant "A") e funciona para a importação "Idosos" (tenant "B"), ambas `concluida` Quando o job diário executa Então os arquivos de "Idosos" são apagados, os de "Hábitos" continuam presentes e são tentados de novo na execução do dia seguinte, e a falha é registrada conforme o ERR-046, só com identificadores e contagens.
+- CA-069 (RF-016) Dado que o job diário apaga `1.jpg` e `2.jpg` da importação "Hábitos" Quando o job termina Então a auditoria da importação tem a ação `LIMPEZA_IMPORTACAO`, o tenant, o identificador, a quantidade apagada (2) e a que restou (0), e o log da execução tem só as contagens, sem `.jpg`, `tenant/`, `importacao/`, conteúdo de arquivo ou mensagem de erro do sistema (RN-028).
+- CA-070 (RF-016) Dado o processo de jobs de manutenção em execução, com o relógio do sistema no fuso `America/Sao_Paulo` Quando o ciclo do processo passa várias vezes no mesmo dia civil e depois o dia seguinte começa Então o job executa uma vez no primeiro ciclo de cada dia civil e não executa nos outros ciclos do mesmo dia, sem intervenção da usuária; depois que o processo reinicia, executa no primeiro ciclo.
+
+## Casos de erro
+- ERR-046 (RF-016) O job não consegue apagar os arquivos de uma importação terminada (armazenamento ou banco indisponível) -> os arquivos continuam, a limpeza das demais importações e tenants segue, a importação é tentada de novo no dia seguinte, e a falha é registrada em log e auditoria só com identificadores, contagens e o nome da classe do erro, sem caminho, nome de arquivo nem mensagem do sistema (RN-028); não há mensagem para a usuária, pois o job não tem tela.
+
+## Fora do escopo
+O expurgo da RN-030 (imagens, dados e exportações por retenção ou eliminação) e a lista de eliminações continuam no IMP-004. As linhas restantes de `tarefa_importacao` (o §4.8 manda apagar "os arquivos e as tarefas" ao fim; o worker já apaga as tarefas) e as pastas órfãs sem registro de importação não são tratadas por este job.
+
+## Perguntas abertas
+Nenhuma.
