@@ -318,6 +318,26 @@ def ids_citados(texto: str, ids: dict) -> set[str]:
     return set(re.findall(rf"\b(?:{alt})\b", texto or ""))
 
 
+def pedido_com_decisoes(tarefa_dir: str) -> str | None:
+    """Texto que autoriza a SPEC a definir ID que já existe na fonte normativa (DL-45, DL-46).
+
+    É o pedido da issue mais os motivos de `/s2r rejeitar spec|design`. Por que os motivos entram: o
+    pedido é gravado quando a tarefa nasce e não pode citar o que uma CHG criou depois. Quem manda
+    refazer a SPEC com os IDs da CHG o faz nesse comando, e ele só é registrado se vier de alguém de
+    'humanos' (processar_comentarios), então o texto continua sendo de humano autorizado. None se a
+    tarefa não tem pedido.
+    """
+    ped = os.path.join(tarefa_dir, "pedido.md")
+    if not os.path.isfile(ped):
+        return None
+    partes = [ler(ped)]
+    for e in Registro(tarefa_dir).eventos():
+        d = e.get("dados", {})
+        if e.get("evento") == "DECISAO" and d.get("acao") == "REJEITAR" and d.get("alvo") in ("spec", "design"):
+            partes.append(d.get("motivo", ""))
+    return "\n".join(partes)
+
+
 def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_minimo: str = "PADRAO",
              pedido: str | None = None) -> Spec:
     """Interpreta e valida a SPEC. Qualquer problema vira ErroFL com a lista completa.
@@ -406,7 +426,7 @@ def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_m
             for i in todos:
                 if not (novo and i.startswith(novo)) and i not in autorizados and re.search(rf"\b{re.escape(i)}\b", fonte):
                     erros.append(f"{i} já existe em {ids.get('fonte_normativa')} e o pedido não o cita: "
-                                 f"só use ID existente que o pedido cite; item novo leva o prefixo {novo or 'de novo'} "
+                                 f"só use ID existente que o pedido ou o seu /s2r rejeitar cite; item novo leva o prefixo {novo or 'de novo'} "
                                  f"(ex.: {novo}{i.split('-')[0]}-001) e entra por CHG")
     abertas = [l for l in sec.get("perguntas abertas", []) if l.startswith("- ")]
     if abertas:
@@ -832,9 +852,8 @@ def spec_da_tarefa(repo: str, tarefa_dir: str, cfg: dict) -> Spec:
         if not os.path.isfile(c):
             raise ErroFL(f"fonte normativa {ids['fonte_normativa']} não encontrada no repositório")
         fonte = ler(c)
-    pedido = os.path.join(tarefa_dir, "pedido.md")
     return ler_spec(ler(os.path.join(tarefa_dir, "spec.md")), ids, fonte, cfg.get("nivel_minimo", "PADRAO"),
-                    ler(pedido) if fonte is not None and os.path.isfile(pedido) else None)
+                    pedido_com_decisoes(tarefa_dir) if fonte is not None else None)
 
 
 def checar_entrega(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict) -> dict:
@@ -1170,12 +1189,11 @@ def regras_da_spec(repo: str, tarefa_dir: str, cfg: dict) -> str:
     if ids.get("fonte_normativa"):
         c = os.path.join(repo, ids["fonte_normativa"])
         fonte = ler(c) if os.path.isfile(c) else ""
-        ped = os.path.join(tarefa_dir, "pedido.md")
-        aut = sorted(i for i in ids_citados(ler(ped) if os.path.isfile(ped) else "", ids)
+        aut = sorted(i for i in ids_citados(pedido_com_decisoes(tarefa_dir) or "", ids)
                      if re.search(rf"\b{re.escape(i)}\b", fonte))
         novo = ids.get("prefixo_novo") or ""
         linhas.append(f"- IDs que já existem em {ids['fonte_normativa']} e que você pode definir na SPEC "
-                      f"(o pedido os cita): {', '.join(aut) if aut else 'nenhum'}.")
+                      f"(o pedido ou o seu /s2r rejeitar os cita): {', '.join(aut) if aut else 'nenhum'}.")
         linhas.append(f"- Qualquer outro requisito, critério, erro ou regra é item novo: use o prefixo `{novo}` "
                       f"(ex.: `{novo}RF-001`, `{novo}CA-001`). Nunca reutilize um ID existente para outro assunto.")
     return "\n".join(linhas)
