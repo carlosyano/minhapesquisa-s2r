@@ -277,7 +277,7 @@ jobs:
           PATCH="$RUNNER_TEMP/entrega/entrega.patch"
           if [ -s "$PATCH" ]; then git apply --index "$PATCH" || echo "patch não aplicável: entrega será recusada"; fi
           set +e
-          python -P -m spec2run aceitar-entrega --repo . --tarefa "$TAREFA"
+          python -P -m spec2run aceitar-entrega --repo . --tarefa "$TAREFA" --saida-agente "$RUNNER_TEMP/entrega/saida-agente.json"
           rc=$?
           set -e
           [ "$rc" = 0 ] || [ "$rc" = 3 ] || exit "$rc"

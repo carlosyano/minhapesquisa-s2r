@@ -134,6 +134,12 @@ def cmd_aceitar_entrega(args):
     _git(args.repo, "add", "-A")
     raw = _git(args.repo, "diff", "--cached", "--raw", "--no-renames")
     try:
+        saida = None
+        if args.saida_agente and os.path.isfile(args.saida_agente):
+            saida = core.ler(args.saida_agente)
+        erro_cli, credencial = core.diagnosticar_saida_cli(saida)
+        if erro_cli:
+            raise core.ErroAgente(f"{papel}: {erro_cli}", credencial)
         caminhos = core.checar_escopo(raw, papel, alvo, rel, cfg)
         if papel in ("BUILDER", "TEST_DESIGNER"):
             core.checar_marcadores(_git(args.repo, "diff", "--cached", "-U0", "--no-renames", "--no-color"), papel, cfg)
@@ -157,6 +163,7 @@ def cmd_aceitar_entrega(args):
         if not core.Registro(d).eventos():
             raise ErroFL("registro.jsonl não está no último commit da branch: a máquina precisa commitar cada etapa")
         core.Registro(d).anexar("ENTREGA_RECUSADA", {"papel": papel, "alvo": alvo, "motivo": str(e)[:6000],
+                                                     "credencial": bool(getattr(e, "credencial", False)),
                                                      "fornecedor": nx["fornecedor"], "tentativa": nx["tentativa"]})
         print(f"entrega de {papel} recusada:\n{e}")
         sys.exit(3)
@@ -257,7 +264,9 @@ def main(argv=None):
     p.add_argument("--formato", choices=("json", "github"), default="json")
     p.add_argument("--mensagem-arquivo")
     novo("prompt", cmd_prompt).add_argument("--diff-arquivo")
-    novo("aceitar-entrega", cmd_aceitar_entrega).add_argument("--base", default="origin/main")
+    p = novo("aceitar-entrega", cmd_aceitar_entrega)
+    p.add_argument("--base", default="origin/main")
+    p.add_argument("--saida-agente")
     novo("evidencia", cmd_evidencia).add_argument("--saida", required=True)
     novo("registrar-evidencia", cmd_registrar_evidencia).add_argument("--arquivo", required=True)
     p = novo("decisao", cmd_decisao)
