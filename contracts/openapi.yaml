@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
   title: MinhaPesquisa API
-  version: 0.9.0
+  version: 0.9.1
   description: |
     API da aplicação local MinhaPesquisa (DEC-107) — digitalização de pesquisas em papel com
     leitura por IA, revisão humana e dashboards, em conformidade com a LGPD. Uma única usuária,
     com todas as permissões (DEC-109); servida só em 127.0.0.1 (DEC-113).
-    Fonte normativa: REQ v2.9 e PLANO.md v3.23. Contract-first — este arquivo valida
+    Fonte normativa: REQ v2.10 e PLANO.md v3.24. Contract-first — este arquivo valida
     requisição e resposta (DEC-049). Erros seguem RFC 9457 (Problem Details) com catálogo ERR fechado.
     Segurança: a única rota pública (`login`) declara `security: []`; sem MFA (DEC-108);
     demais rotas exigem sessão, e toda mutação exige também o token CSRF (os dois esquemas no
@@ -1767,7 +1767,7 @@ components:
     ErrorCode:
       type: string
       description: Catálogo fechado de erros ativos (REQ §8.2)
-      enum: [ERR-001, ERR-002, ERR-003, ERR-004, ERR-006, ERR-009, ERR-010, ERR-013, ERR-014, ERR-015, ERR-016, ERR-017, ERR-018, ERR-019, ERR-020, ERR-021, ERR-022, ERR-029, ERR-036, ERR-039, ERR-041, ERR-044, ERR-045]
+      enum: [ERR-001, ERR-002, ERR-003, ERR-004, ERR-006, ERR-009, ERR-010, ERR-013, ERR-014, ERR-015, ERR-016, ERR-017, ERR-018, ERR-019, ERR-020, ERR-021, ERR-022, ERR-029, ERR-036, ERR-039, ERR-041, ERR-044, ERR-045, ERR-046]
 
     ApplicationState:
       type: string

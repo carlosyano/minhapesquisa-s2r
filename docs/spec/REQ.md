@@ -1,9 +1,9 @@
 REQ.md — MinhaPesquisa
 Especificação funcional (fonte da verdade para as IAs)
 
-Status: APROVADO (Gate 1) · CHG-002 a CHG-011 aceitas (CHG-011 propagada na v2.1, IMP-005) · CHG-013 aceita na v2.3 · CHG-014 aceita na v2.4 · CHG-015 aceita na v2.5 · CHG-016 aceita na v2.6 · CHG-017 aceita na v2.7 (Q-063 a Q-071 respondidas; REV-REQ-011 a REV-REQ-015; Q-072 a Q-081 respondidas; ciclo de revisão encerrado pela DEC-073 na rodada 5; Q-082 e Q-083, do IA-DEV do IMP-008, respondidas) · CHG-018 aceita na v2.8 em 07/11/2026 (Q-084 a Q-098 respondidas; rodadas 1 a 4 corrigidas, REV-REQ-016 a REV-REQ-019; ciclo de revisão encerrado pela DEC-073 na rodada 4) · CHG-019 aceita na v2.9 em 13/11/2026 (Q-099 a Q-118 respondidas; ciclo de revisão fechado na rodada 6, REV-REQ-020 a REV-REQ-025, e Q-115 a Q-117 conferidas na rodada 6, REV-REQ-025)
-Versão: 2.9
-Data de aprovação: 24/10/2026 (v1.2) · 27/10/2026 (v1.3, CHG-002; v1.4, CHG-003) · 28/10/2026 (v1.5 e v1.6, CHG-004; v1.7, CHG-005; v1.8, CHG-006) · 29/10/2026 (v1.9, CHG-007; v1.10, CHG-008) · 03/11/2026 (v1.11, CHG-009; v1.12, CHG-010; v2.0 e v2.1, CHG-011) · 05/11/2026 (v2.3, CHG-013; v2.4, CHG-014; v2.5, CHG-015; v2.6, CHG-016) · 06/11/2026 (v2.7, CHG-017) · 07/11/2026 (v2.8, CHG-018) · 10/11/2026 (v2.9, CHG-019, proposta)
+Status: APROVADO (Gate 1) · CHG-002 a CHG-011 aceitas (CHG-011 propagada na v2.1, IMP-005) · CHG-013 aceita na v2.3 · CHG-014 aceita na v2.4 · CHG-015 aceita na v2.5 · CHG-016 aceita na v2.6 · CHG-017 aceita na v2.7 (Q-063 a Q-071 respondidas; REV-REQ-011 a REV-REQ-015; Q-072 a Q-081 respondidas; ciclo de revisão encerrado pela DEC-073 na rodada 5; Q-082 e Q-083, do IA-DEV do IMP-008, respondidas) · CHG-018 aceita na v2.8 em 07/11/2026 (Q-084 a Q-098 respondidas; rodadas 1 a 4 corrigidas, REV-REQ-016 a REV-REQ-019; ciclo de revisão encerrado pela DEC-073 na rodada 4) · CHG-019 aceita na v2.9 em 13/11/2026 (Q-099 a Q-118 respondidas; ciclo de revisão fechado na rodada 6, REV-REQ-020 a REV-REQ-025, e Q-115 a Q-117 conferidas na rodada 6, REV-REQ-025) · CHG-020 proposta na v2.10 em 19/11/2026 (limpeza diária dos arquivos de importações terminadas, F-21; aguarda o ciclo de revisão e o aceite do responsável)
+Versão: 2.10
+Data de aprovação: 24/10/2026 (v1.2) · 27/10/2026 (v1.3, CHG-002; v1.4, CHG-003) · 28/10/2026 (v1.5 e v1.6, CHG-004; v1.7, CHG-005; v1.8, CHG-006) · 29/10/2026 (v1.9, CHG-007; v1.10, CHG-008) · 03/11/2026 (v1.11, CHG-009; v1.12, CHG-010; v2.0 e v2.1, CHG-011) · 05/11/2026 (v2.3, CHG-013; v2.4, CHG-014; v2.5, CHG-015; v2.6, CHG-016) · 06/11/2026 (v2.7, CHG-017) · 07/11/2026 (v2.8, CHG-018) · 10/11/2026 (v2.9, CHG-019, proposta) · 19/11/2026 (v2.10, CHG-020, proposta)
 Nível de rigor: Completo (DEC-001)
 Perfil de plataforma: Bloco P — Web SaaS com dados pessoais (confirmado), aplicado no que couber à aplicação local da DEC-107
 Responsável: Carlos Yano
@@ -21,6 +21,8 @@ Nota da v2.7 (CHG-017, Change Request de 06/11/2026 em `docs/historico/`, revist
 Nota da v2.8 (CHG-018, testes preliminares do responsável em 07/11/2026): as Q-084 e Q-085 foram respondidas em 07/11/2026. A opção "Outro" ganha um texto complementar, lido, revisado e exportado numa coluna própria (DEC-197), e o nome do arquivo enviado é gravado como dado pessoal, mostrado no resultado e exportado (DEC-198). As Q-086 a Q-089, abertas na propagação, foram respondidas no mesmo dia: o complemento é opcional (DEC-199), segue a regra geral de confiança (DEC-200), sai nas colunas `Arquivo` e `Complemento` do formato longo (DEC-201) e é marcado também no editor, com uma linha impressa no PDF (DEC-202). O complemento é um item de resposta próprio, ligado à opção (RN-009, ENT-011), que só vale quando a opção é marcada (FL-002, pré-regra 1b). A rodada 1 da revisão (REV-REQ-016) levou às Q-090 a Q-093: o complemento e o arquivo vão também à exportação linha a linha (DEC-207), a revisão humana do complemento é mantida enquanto a opção continua marcada (DEC-204), o nome do arquivo é apagado no ato da eliminação do titular (DEC-206) e o texto escrito ao lado de uma opção não marcada vai à revisão como inconsistência (DEC-205). A rodada 2 (REV-REQ-017) levou à Q-094: quando a própria usuária tira a opção na revisão, o complemento vai direto a `nao_se_aplica` (DEC-208). A rodada 3 (REV-REQ-018) levou às Q-095 a Q-097: o texto ao lado de uma opção não marcada vai à revisão só quando o valor da pergunta veio da leitura ou da regra de salto, e não quando a própria usuária resolveu a pergunta (DEC-209, que substitui a DEC-208); o nome do arquivo é apagado no ato também nas aplicações descartadas pela própria eliminação (DEC-210); e a ficha individual mostra o complemento, sem o nome do arquivo (DEC-211). A rodada 4 (REV-REQ-019) atingiu o critério de parada da DEC-073 e levou à Q-098: o `nao_se_aplica` que a usuária marca no complemento de opção não marcada é mantido enquanto a opção continuar não marcada (DEC-212).
 
 Nota da v2.9 (CHG-019, Change Request de 10/11/2026 em `docs/historico/`): nos testes com CPF e data da aplicação em caixas, nada era lido, porque o bloco do CPF ficava encostado no da data e a regra de sobreposição da RN-052 (item 5) mandava os dois à revisão sem leitura. O responsável decidiu: projeto e formulário são escolhidos sempre antes do envio (DEC-215); a leitura passa a receber a página inteira com o gabarito das perguntas dela, sem recortes e sem separar identificação de saúde (DEC-216, que revoga a RN-052 item 5 e a RN-039 e torna geral a exceção da RN-038); o QR passa a ser legível por humanos, `PPPPP.FFF.VV.X/Y`, com códigos sequenciais do projeto e do formulário (DEC-217, DEC-218); o QR antigo conta como ausente (DEC-218); e o PDF ganha cabeçalho, rodapé legível e espaçamento entre blocos (DEC-219). As Q-099 a Q-104 foram respondidas em 10/11/2026. A rodada 1 da revisão (REV-REQ-020) levou às Q-105 e Q-106, respondidas no mesmo dia: o formulário escolhido fica fixo na aplicação (DEC-221) e a folha acrescentada depois com QR de outro projeto ou formulário também é recusada com ERR-045 (DEC-222).
+
+Nota da v2.10 (CHG-020, proposta de 19/11/2026): o achado F-21 do PLANO (§12.3) previa o job diário que apaga os arquivos que sobram de importações de formulário terminadas, adiado para o job de expurgo da RN-030. O responsável decidiu mantê-lo separado do expurgo (DEC-237). A REQ passa a ter o RF-016, as regras RN-053 a RN-055, os critérios de aceite CA-064 a CA-070 e o ERR-046. O expurgo da RN-030 e a lista de eliminações não mudam e seguem no IMP-004. Nenhuma regra de negócio existente muda: o job só limpa o resto que a RN-028 e a DEC-142 já mandavam apagar.
 
 1. Resumo em linguagem simples
 
@@ -569,6 +571,22 @@ RN-052 — Identificação da página, leitura da página inteira e papel antigo
 3d. Data e local do envio são aplicados ou apagados quando a localização confirma a versão e as páginas, e não antes (DEC-186).
 4. A versão de papel antigo (DEC-175) dispensa CPF, data de nascimento e assinatura na conclusão (DEC-172, DEC-176) e não exige evidência de consentimento (DEC-173). Pergunta marcada `nao_consta` não é localizada nem lida (DEC-179).
 5. Revogado pela DEC-216 (CHG-019): não há mais teste de sobreposição de regiões; perguntas vizinhas, inclusive o CPF em caixas e a data da aplicação, são lidas na mesma página inteira e distinguidas pelo gabarito.
+
+RN-053 — Quais importações o job diário limpa (DEC-237)
+1. O job apaga os arquivos que sobraram só das importações em estado final, `concluida` ou `falhou` (FL-004). Os dois estados não voltam atrás: uma nova tentativa é um novo envio, com outro identificador.
+2. O job nunca apaga arquivo de importação em `enfileirada`, `aguardando_cota` ou `em_andamento`. A importação em `aguardando_cota` pode ficar parada por dias, até a virada do mês (FL-004), e continua intacta.
+3. Só entra a importação cujo estado final está gravado no banco. A lista de estados que o job apaga é fechada: um estado novo ou inesperado nunca é apagado.
+4. Depois de apagar tudo da importação, o job grava `chave_storage` NULL se ainda não estiver. Não muda o estado, `concluida_em`, o aviso nem o formulário criado.
+
+RN-054 — Onde o job pode apagar (DEC-237)
+1. O job apaga somente dentro de `tenant/<tenant>/importacao/<importação>/`, com o caminho montado a partir do tenant e do identificador da ImportacaoFormulario no banco, e nunca a partir de nome lido do armazenamento.
+2. O job nunca apaga em pasta de aplicação, de exportação ou de outro tenant, nem pasta sem registro de importação no banco.
+3. O job acha o resto pela pasta derivada do identificador, sem depender do `chave_storage` (o worker já o deixa NULL ao fim da importação, antes da exclusão, e por isso ele não indica resto).
+
+RN-055 — O que o job registra (DEC-237, RN-028)
+1. Log e auditoria trazem só identificadores e contagens: nunca nome de arquivo, caminho, conteúdo nem mensagem de erro do sistema. No erro, o log traz só o nome da classe do erro.
+2. A importação que tinha arquivo a apagar é auditada (ação `LIMPEZA_IMPORTACAO`, entidade ImportacaoFormulario, ator de sistema) com o tenant, o identificador, a quantidade apagada e a quantidade que restou. A importação sem nada a apagar não gera auditoria.
+3. A execução do dia gera um único log com as contagens (importações verificadas, arquivos apagados e falhas).
 
 5. Modelo e dicionário de dados
 
@@ -1254,6 +1272,17 @@ Erro e timeout: ERR-001, ERR-018 (`addApplicationPages` em aplicação antiga se
 Registros alterados: Projeto (`codigo`), Formulario (`codigo`), Aplicacao (`formulario_id`, DEC-221), PaginaAplicacao (`numero_pagina`, `regioes`), ItemResposta, Auditoria (recusa do ERR-045, sem imagem).
 Mensagens: as do RF-004, do RF-006 e do RF-007, e a do ERR-045.
 Estado final: os da FL-001.
+
+**RF-016 — Limpeza diária dos arquivos de importações terminadas (CHG-020, F-21)**
+Quem executa: o sistema, uma vez por dia, sem intervenção da usuária (job de manutenção, PLANO §4.7).
+Quando pode: todo dia, para as importações em `concluida` ou `falhou` que ainda tenham arquivo na pasta `tenant/<tenant>/importacao/<importação>/` (RN-053).
+Quando não pode: importação em `enfileirada`, `aguardando_cota` ou `em_andamento` (RN-053); pasta sem registro de importação no banco, pasta de outro tenant e pastas de aplicação ou de exportação (RN-054).
+Entradas: o estado e o tenant de cada ImportacaoFormulario, lidos do banco; nenhuma entrada da usuária.
+Sucesso: os arquivos que sobraram são apagados, o campo `chave_storage` fica NULL e a ação é auditada só com identificadores e contagens (RN-055, CA-064). Rodar de novo, sem nada a apagar, termina sem erro (CA-067).
+Erro e timeout: ERR-046 (falha ao apagar uma importação); a falha de uma importação não interrompe as demais (CA-068); o que falhou é tentado de novo no dia seguinte.
+Registros alterados: ImportacaoFormulario (só `chave_storage`, para NULL), Auditoria (ação `LIMPEZA_IMPORTACAO`). Nenhuma tabela ou coluna nova.
+Mensagens: nenhuma para a usuária (o job não tem tela); log de erro e auditoria conforme o ERR-046.
+Estado final: o estado da ImportacaoFormulario não muda (FL-004).
 
 6.2 Requisitos não funcionais (RNF)
 
@@ -2277,6 +2306,60 @@ Então os casos da tabela são tratados assim (DEC-217, DEC-218)
 
 Os exemplos 5 a 7 não criam milhares de registros: o teste grava na base de teste o maior código (99999 ou 999) ou a versão 99 e então chama a operação.
 
+CA-064 — O job apaga o resto das importações terminadas
+Dado que o tenant "A" tem a importação "Hábitos" em `concluida` e a importação "Idosos" em `falhou`, cada uma com uma página `1.jpg` ainda na pasta `tenant/<tenant>/importacao/<importação>/`
+Quando o job diário executa
+Então as duas pastas ficam sem arquivo e a `chave_storage` das duas é NULL
+E o estado de cada importação não muda
+
+| Exemplo | Estado | Arquivos na pasta antes | Arquivos depois |
+|---|---|---|---|
+| 1 | `concluida` | `1.jpg` | nenhum |
+| 2 | `falhou` | `1.jpg`, `2.jpg` (a exclusão falhou depois da página 1) | nenhum |
+| 3 | `concluida`, de outro tenant "B" | `1.jpg` | nenhum (cada tenant é limpo pela sua pasta) |
+
+CA-065 — O job nunca apaga importação em andamento
+Dado que o tenant tem importações nos estados da tabela, cada uma com `1.jpg` na sua pasta
+Quando o job diário executa
+Então os arquivos continuam presentes e o estado de cada importação não muda
+
+| Exemplo | Estado | Resultado esperado |
+|---|---|---|
+| 1 | `enfileirada` | `1.jpg` presente; estado `enfileirada` |
+| 2 | `aguardando_cota` (parada desde o mês anterior) | `1.jpg` presente; estado `aguardando_cota` |
+| 3 | `em_andamento` | `1.jpg` presente; estado `em_andamento` |
+
+CA-066 — O job só apaga a pasta da importação
+Dado que o tenant "A" tem, ao lado da importação `concluida`, arquivos de aplicação, arquivos de exportação e uma pasta `tenant/<tenant>/importacao/<id sem registro>/` com `1.jpg`, e que o tenant "B" tem os próprios arquivos
+Quando o job diário executa
+Então só os arquivos da pasta da importação `concluida` são apagados
+E os arquivos de aplicação e de exportação do tenant "A", a pasta sem registro de importação e os arquivos do tenant "B" continuam presentes
+
+CA-067 — O job pode rodar de novo sem erro
+Dado que o job diário já apagou o resto de todas as importações terminadas
+Quando o job executa de novo em seguida, ou a pasta de uma importação terminada não existe mais
+Então a execução termina sem erro, sem apagar nada e sem auditar importação
+
+CA-068 — A falha de uma importação não interrompe as demais
+Dado que o armazenamento falha ao apagar a pasta da importação "Hábitos" (tenant "A") e funciona para a importação "Idosos" (tenant "B"), ambas `concluida`
+Quando o job diário executa
+Então os arquivos de "Idosos" são apagados
+E os de "Hábitos" continuam presentes e são tentados de novo na execução do dia seguinte
+E a falha é registrada conforme o ERR-046, só com identificadores e contagens
+
+CA-069 — Log e auditoria só com identificadores e contagens
+Dado que o job diário apaga `1.jpg` e `2.jpg` da importação "Hábitos"
+Quando o job termina
+Então a auditoria da importação tem a ação `LIMPEZA_IMPORTACAO`, o tenant, o identificador e a quantidade apagada (2) e a que restou (0)
+E o log da execução tem só as contagens
+E nem a auditoria nem o log têm `.jpg`, `tenant/`, `importacao/`, conteúdo de arquivo ou mensagem de erro do sistema (RN-028)
+
+CA-070 — O job roda uma vez por dia, sozinho
+Dado o processo de jobs de manutenção em execução, com o relógio do sistema no fuso `America/Sao_Paulo`
+Quando o ciclo do processo passa várias vezes no mesmo dia civil e depois o dia seguinte começa
+Então o job executa uma vez no primeiro ciclo de cada dia civil e não executa nos outros ciclos do mesmo dia, sem intervenção da usuária
+E, depois que o processo reinicia, executa no primeiro ciclo (rodar a mais não causa dano, CA-067)
+
 8. Rastreabilidade e catálogo de erros
 
 8.1 Matriz de Rastreabilidade (completa)
@@ -2300,6 +2383,7 @@ A matriz completa é mantida em `registros/matriz_rastreabilidade.csv`, idêntic
 | RF-013 | RN-016, RN-017, RN-036, RN-038, RN-041, RN-045, RN-049, RN-050, RN-052 | ENT-004, ENT-006, ENT-007, ENT-009, ENT-010, ENT-025, ENT-031 | FL-001, FL-002 | US-001, US-003, US-011 | CA-052, CA-053, CA-054, CA-055, CA-057, CA-058 | — | uploadImages, identifyApplication, addApplicationPages, getPageImage, getItemImage, openReview, getApplication, saveReview, retryReading, confirmApplication, attachSignaturePage, createVersion, updateVersion, publishVersion, generatePdf, importForm, processAIReading (interna) | CMP-Upload, CMP-MotorIA, CMP-Forms | IMP-008 |
 | RF-014 | RN-009, RN-028, RN-030, RN-037, RN-045, RN-047, RN-049, RN-051 | ENT-008, ENT-011, ENT-025 | FL-001, FL-002 | US-013 | CA-059, CA-060 | — | createVersion, updateVersion, generatePdf, importForm, uploadImages, addApplicationPages, attachSignaturePage, getApplication, openReview, getItemImage, saveReview, confirmApplication, reopenApplication, exportData, getIndividualRecord, executeDataSubjectRequest, processAIReading (interna) | CMP-Forms, CMP-Upload, CMP-MotorIA, CMP-Revisao, CMP-LGPD | IMP-009 |
 | RF-015 | RN-033, RN-036, RN-037, RN-038, RN-041, RN-045, RN-052 | ENT-004, ENT-005, ENT-006, ENT-010, ENT-011, ENT-013, ENT-025 | FL-001, FL-002 | US-014 | CA-061, CA-062, CA-063 | — | createProject, createForm, createVersion, publishVersion, generatePdf, uploadImages, identifyApplication, addApplicationPages, attachSignaturePage, getPageImage, getItemImage, processAIReading (interna) | CMP-Projects, CMP-Forms, CMP-Upload, CMP-MotorIA | IMP-010 |
+| RF-016 | RN-053, RN-054, RN-055 | ENT-031 | FL-004 | — | CA-064, CA-065, CA-066, CA-067, CA-068, CA-069, CA-070 | — | — | CMP-LGPD | IMP-011 |
 
 8.2 Catálogo de Erros (ERR)
 
@@ -2338,6 +2422,7 @@ Formato Problem Details (RFC 9457). Mensagens exatas em pt-BR. Sem stack trace o
 | ERR-043 | RESERVATION_CONFLICT | 409 | Descontinuado pela CHG-011: sem reserva de aplicação (DEC-112). | Descontinuado. | — | — | CHG-011 | descontinuado |
 | ERR-044 | FORM_IMPORT_FAILED | — | A importação de formulário não reconheceu nenhuma pergunta, ou 3 chamadas à IA falharam na mesma página (estado assíncrono, exibido na consulta da importação). | Não foi possível ler o formulário. Confira o arquivo e tente de novo, ou cadastre as perguntas à mão. | error: form_import_failed (motivo, página) | Importação em `falhou`; nada é criado | RF-011, CA-047 | ativo |
 | ERR-045 | FORM_SELECTION_MISMATCH | 409 | O QR legível de alguma folha do envio (`uploadImages`), da folha acrescentada (`addApplicationPages`) ou da página 1 assinada (`attachSignaturePage`) é de projeto ou formulário diferente do escolhido no envio (DEC-215, DEC-222); com várias folhas divergentes, vale a primeira, na ordem do envio, e o ERR-029 vem antes (DEC-224). | O QR desta digitalização é de outro projeto ou formulário. Selecione o projeto e o formulário corretos e envie de novo. | info: form_selection_mismatch (códigos lidos, sem imagem nem nome de arquivo) | Nada é gravado: no envio, nenhuma aplicação é criada; nos demais, a aplicação fica como estava | RF-006, RF-008, RF-013, RF-015, RN-052, CA-044, CA-052, CA-061 | ativo |
+| ERR-046 | IMPORT_CLEANUP_FAILED | — | O job diário de limpeza (RF-016) não consegue apagar os arquivos de uma importação terminada (armazenamento ou banco indisponível). Não é resposta HTTP: o job não tem tela. | Sem mensagem para a usuária. | error: import_cleanup_failed (só `tenant_id`, `importacao_id`, contagens e o nome da classe do erro, sem caminho, nome de arquivo nem mensagem do sistema, RN-028); auditoria `LIMPEZA_IMPORTACAO` com `falha` | Os arquivos da importação continuam, a limpeza das demais importações e tenants segue, e a importação é tentada de novo no dia seguinte | RF-016, RN-053, RN-054, RN-055, CA-067, CA-068, CA-069 | ativo |
 
 9. Questões em aberto (Q)
 
@@ -2491,7 +2576,7 @@ Testes sentinela são casos de teste de alto nível que validam os riscos críti
 
 Reavaliado na v1.3. Itens verificáveis por script são checados no CI por `tools/validar_consistencia.py`; o resultado do script prevalece sobre este texto.
 
-- [x] 1. IDs únicos e rastreáveis: RF-001 a RF-015, RNF-001 a RNF-014, RN-001 a RN-052, ENT-001 a ENT-031, FL-001 a FL-004, TL-001 a TL-015, US-001 a US-014, 58 CAs (CA-001 a CA-063 e CA-014b, sem os retirados na v2.1: CA-010, CA-016, CA-025, CA-026b, CA-034, CA-037b, CA-038 e CA-043), ERR do catálogo (seção 8.2, incluindo os descontinuados), TS-001 a TS-008, DEC-001 a DEC-036 e DEC-054 a DEC-061, DEC-064 a DEC-082 (tabela da REQ; inclui DEC técnicas anteriores à Fase 3, como DEC-007, DEC-022 e DEC-036), DEC-037 a DEC-053, DEC-062 e DEC-063 (técnicas, no PLANO), as DEC seguintes da REQ e do PLANO até a DEC-235, Q-001 a Q-118 e GX-001. Verificado por script (IDs citados existem nos registros).
+- [x] 1. IDs únicos e rastreáveis: RF-001 a RF-016, RNF-001 a RNF-014, RN-001 a RN-055, ENT-001 a ENT-031, FL-001 a FL-004, TL-001 a TL-015, US-001 a US-014, 65 CAs (CA-001 a CA-070 e CA-014b, sem os retirados na v2.1: CA-010, CA-016, CA-025, CA-026b, CA-034, CA-037b, CA-038 e CA-043), ERR do catálogo (seção 8.2, incluindo os descontinuados), TS-001 a TS-008, DEC-001 a DEC-036 e DEC-054 a DEC-061, DEC-064 a DEC-082 (tabela da REQ; inclui DEC técnicas anteriores à Fase 3, como DEC-007, DEC-022 e DEC-036), DEC-037 a DEC-053, DEC-062 e DEC-063 (técnicas, no PLANO), as DEC seguintes da REQ e do PLANO até a DEC-235, Q-001 a Q-118 e GX-001. Verificado por script (IDs citados existem nos registros).
 - [x] 2. BDD com dados concretos: tabelas de exemplos nos CAs de alto risco CA-002, CA-008, CA-012, CA-023, CA-029, CA-030 e CA-032 (adicionadas na v1.3; na v1.2 só o CA-029 tinha tabela).
 - [x] 3. Estados e fluxos fechados: FL-001 com tabela de criação e entradas em `aguardando_cota`; FL-002 com ordem de avaliação explícita; FL-004 com as transições da importação (CHG-014). Estados verificados por script contra o dicionário e o contrato.
 - [x] 4. Dicionário de dados completo: 31 entidades com as 11 propriedades; `registros/dicionario_dados.csv` idêntico, verificado por script.
