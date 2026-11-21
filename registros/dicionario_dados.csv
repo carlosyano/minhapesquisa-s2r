@@ -129,7 +129,7 @@ ENT-013 Auditoria,registro_id,ID do registro afetado,uuid,não,36,UUID v4,—,NU
 ENT-013 Auditoria,campo,campo afetado,varchar,não,100,—,—,NULL,não,—,não
 ENT-013 Auditoria,ip,IP de origem,inet,não,—,IPv4/IPv6,—,NULL,não,—,pessoal
 ENT-013 Auditoria,canal,canal (web; api; script),enum,não,—,—,web; api; script,NULL,não,—,não
-ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
+ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
 ENT-013 Auditoria,criado_em,data do evento,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
 ENT-014 VinculoUsuarioProjeto,id,identificador do vínculo,uuid,sim,36,UUID v4,—,—,sim,—,não
 ENT-014 VinculoUsuarioProjeto,tenant_id,tenant do vínculo,uuid,sim,36,UUID v4,—,—,não,Tenant.id,não
@@ -274,7 +274,7 @@ ENT-031 ImportacaoFormulario,projeto_id,projeto que recebe o formulário,uuid,si
 ENT-031 ImportacaoFormulario,nome_formulario,nome do formulário a criar,varchar,sim,200,—,—,—,não,—,não
 ENT-031 ImportacaoFormulario,estado,situação da importação (FL-004),enum,sim,—,—,enfileirada; aguardando_cota; em_andamento; concluida; falhou,enfileirada,não,—,não
 ENT-031 ImportacaoFormulario,total_paginas,páginas do envio,int,sim,—,—,1..50,—,não,—,não
-ENT-031 ImportacaoFormulario,chave_storage,"pasta dos arquivos enviados (NULL depois de apagados, RN-049)",varchar,não,500,—,—,NULL,não,—,não
+ENT-031 ImportacaoFormulario,chave_storage,"pasta dos arquivos enviados (NULL ao fim da importação, antes de os arquivos serem apagados, RN-049; o job da RN-054.3 não depende dele)",varchar,não,500,—,—,NULL,não,—,não
 ENT-031 ImportacaoFormulario,formulario_id,formulário criado (só em concluida),uuid,não,36,UUID v4,—,NULL,não,Formulario.id,não
 ENT-031 ImportacaoFormulario,avisos,"ajustes da RN-049 por página e posição no original, sem texto lido",jsonb,não,—,JSON,—,NULL,não,—,não
 ENT-031 ImportacaoFormulario,criada_em,data do pedido,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
