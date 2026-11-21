@@ -85,7 +85,7 @@
   "opencode-alibaba": {
    "instalar": "npm install -g opencode-ai@{versao}",
    "executar": "[[ \"${AGENT_BASE_URL:-}\" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || { echo \"::error::defina a variável AGENT_BASE_URL (https) no Environment do papel\" >&2; exit 2; } && m=\"${MODELO#*/}\" && printf '{\"permission\":{\"edit\":\"allow\",\"bash\":\"deny\",\"webfetch\":\"deny\"},\"provider\":{\"alibaba-sg\":{\"npm\":\"@ai-sdk/anthropic\",\"name\":\"Alibaba Cloud Model Studio\",\"options\":{\"baseURL\":\"{env:AGENT_BASE_URL}\",\"apiKey\":\"{env:DASHSCOPE_API_KEY}\"},\"models\":{\"%s\":{\"name\":\"%s\"}}}}}' \"$m\" \"$m\" > \"$RUNNER_TEMP/opencode.json\" && OPENCODE_CONFIG=\"$RUNNER_TEMP/opencode.json\" opencode run \"$PROMPT\" --model \"$MODELO\" > \"$SAIDA\"",
-   "_leia": "OpenCode com o Alibaba Cloud Model Studio (Singapura). AGENT_BASE_URL é variável (não segredo) do Environment do papel: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1 (Token Plan; precisa terminar em /v1). Pay-as-you-go: https://<WorkspaceId>.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1. A chave vai em DASHSCOPE_API_KEY (variavel_chave). DL-44."
+   "_leia": "OpenCode com o Alibaba Cloud Model Studio (Singapura). AGENT_BASE_URL é variável (não segredo) do Environment do papel: https://dashscope-intl.aliyuncs.com/apps/anthropic/v1 (Model Studio internacional, pay-as-you-go; precisa terminar em /v1). Não use o Token Plan Personal: os termos proíbem automação (DL-51). A chave vai em DASHSCOPE_API_KEY (variavel_chave). DL-44."
   }
  },
  "diversidade": [
