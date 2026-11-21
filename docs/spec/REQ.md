@@ -1,9 +1,9 @@
 REQ.md — MinhaPesquisa
 Especificação funcional (fonte da verdade para as IAs)
 
-Status: APROVADO (Gate 1) · CHG-002 a CHG-011 aceitas (CHG-011 propagada na v2.1, IMP-005) · CHG-013 aceita na v2.3 · CHG-014 aceita na v2.4 · CHG-015 aceita na v2.5 · CHG-016 aceita na v2.6 · CHG-017 aceita na v2.7 (Q-063 a Q-071 respondidas; REV-REQ-011 a REV-REQ-015; Q-072 a Q-081 respondidas; ciclo de revisão encerrado pela DEC-073 na rodada 5; Q-082 e Q-083, do IA-DEV do IMP-008, respondidas) · CHG-018 aceita na v2.8 em 07/11/2026 (Q-084 a Q-098 respondidas; rodadas 1 a 4 corrigidas, REV-REQ-016 a REV-REQ-019; ciclo de revisão encerrado pela DEC-073 na rodada 4) · CHG-019 aceita na v2.9 em 13/11/2026 (Q-099 a Q-118 respondidas; ciclo de revisão fechado na rodada 6, REV-REQ-020 a REV-REQ-025, e Q-115 a Q-117 conferidas na rodada 6, REV-REQ-025) · CHG-020 proposta na v2.10 em 19/11/2026 (limpeza diária dos arquivos de importações terminadas, F-21; aguarda o ciclo de revisão e o aceite do responsável)
+Status: APROVADO (Gate 1) · CHG-002 a CHG-011 aceitas (CHG-011 propagada na v2.1, IMP-005) · CHG-013 aceita na v2.3 · CHG-014 aceita na v2.4 · CHG-015 aceita na v2.5 · CHG-016 aceita na v2.6 · CHG-017 aceita na v2.7 (Q-063 a Q-071 respondidas; REV-REQ-011 a REV-REQ-015; Q-072 a Q-081 respondidas; ciclo de revisão encerrado pela DEC-073 na rodada 5; Q-082 e Q-083, do IA-DEV do IMP-008, respondidas) · CHG-018 aceita na v2.8 em 07/11/2026 (Q-084 a Q-098 respondidas; rodadas 1 a 4 corrigidas, REV-REQ-016 a REV-REQ-019; ciclo de revisão encerrado pela DEC-073 na rodada 4) · CHG-019 aceita na v2.9 em 13/11/2026 (Q-099 a Q-118 respondidas; ciclo de revisão fechado na rodada 6, REV-REQ-020 a REV-REQ-025, e Q-115 a Q-117 conferidas na rodada 6, REV-REQ-025) · CHG-020 aceita na v2.10 em 21/11/2026 (limpeza diária dos arquivos de importações terminadas, F-21; REV-REQ-026 e REV-PLANO-028, 0 bloqueantes e 0 altos)
 Versão: 2.10
-Data de aprovação: 24/10/2026 (v1.2) · 27/10/2026 (v1.3, CHG-002; v1.4, CHG-003) · 28/10/2026 (v1.5 e v1.6, CHG-004; v1.7, CHG-005; v1.8, CHG-006) · 29/10/2026 (v1.9, CHG-007; v1.10, CHG-008) · 03/11/2026 (v1.11, CHG-009; v1.12, CHG-010; v2.0 e v2.1, CHG-011) · 05/11/2026 (v2.3, CHG-013; v2.4, CHG-014; v2.5, CHG-015; v2.6, CHG-016) · 06/11/2026 (v2.7, CHG-017) · 07/11/2026 (v2.8, CHG-018) · 10/11/2026 (v2.9, CHG-019, proposta) · 19/11/2026 (v2.10, CHG-020, proposta)
+Data de aprovação: 24/10/2026 (v1.2) · 27/10/2026 (v1.3, CHG-002; v1.4, CHG-003) · 28/10/2026 (v1.5 e v1.6, CHG-004; v1.7, CHG-005; v1.8, CHG-006) · 29/10/2026 (v1.9, CHG-007; v1.10, CHG-008) · 03/11/2026 (v1.11, CHG-009; v1.12, CHG-010; v2.0 e v2.1, CHG-011) · 05/11/2026 (v2.3, CHG-013; v2.4, CHG-014; v2.5, CHG-015; v2.6, CHG-016) · 06/11/2026 (v2.7, CHG-017) · 07/11/2026 (v2.8, CHG-018) · 10/11/2026 (v2.9, CHG-019, proposta) · 19/11/2026 (v2.10, CHG-020, aceita 21/11/2026)
 Nível de rigor: Completo (DEC-001)
 Perfil de plataforma: Bloco P — Web SaaS com dados pessoais (confirmado), aplicado no que couber à aplicação local da DEC-107
 Responsável: Carlos Yano
@@ -22,7 +22,7 @@ Nota da v2.8 (CHG-018, testes preliminares do responsável em 07/11/2026): as Q-
 
 Nota da v2.9 (CHG-019, Change Request de 10/11/2026 em `docs/historico/`): nos testes com CPF e data da aplicação em caixas, nada era lido, porque o bloco do CPF ficava encostado no da data e a regra de sobreposição da RN-052 (item 5) mandava os dois à revisão sem leitura. O responsável decidiu: projeto e formulário são escolhidos sempre antes do envio (DEC-215); a leitura passa a receber a página inteira com o gabarito das perguntas dela, sem recortes e sem separar identificação de saúde (DEC-216, que revoga a RN-052 item 5 e a RN-039 e torna geral a exceção da RN-038); o QR passa a ser legível por humanos, `PPPPP.FFF.VV.X/Y`, com códigos sequenciais do projeto e do formulário (DEC-217, DEC-218); o QR antigo conta como ausente (DEC-218); e o PDF ganha cabeçalho, rodapé legível e espaçamento entre blocos (DEC-219). As Q-099 a Q-104 foram respondidas em 10/11/2026. A rodada 1 da revisão (REV-REQ-020) levou às Q-105 e Q-106, respondidas no mesmo dia: o formulário escolhido fica fixo na aplicação (DEC-221) e a folha acrescentada depois com QR de outro projeto ou formulário também é recusada com ERR-045 (DEC-222).
 
-Nota da v2.10 (CHG-020, proposta de 19/11/2026): o achado F-21 do PLANO (§12.3) previa o job diário que apaga os arquivos que sobram de importações de formulário terminadas, adiado para o job de expurgo da RN-030. O responsável decidiu mantê-lo separado do expurgo (DEC-237). A REQ passa a ter o RF-016, as regras RN-053 a RN-055, os critérios de aceite CA-064 a CA-070 e o ERR-046. O expurgo da RN-030 e a lista de eliminações não mudam e seguem no IMP-004. Nenhuma regra de negócio existente muda: o job só limpa o resto que a RN-028 e a DEC-142 já mandavam apagar.
+Nota da v2.10 (CHG-020, proposta em 19/11/2026 e aceita em 21/11/2026): o achado F-21 do PLANO (§12.3) previa o job diário que apaga os arquivos que sobram de importações de formulário terminadas, adiado para o job de expurgo da RN-030. O responsável decidiu mantê-lo separado do expurgo (DEC-237). A REQ passa a ter o RF-016, as regras RN-053 a RN-055, os critérios de aceite CA-064 a CA-070 e o ERR-046. O expurgo da RN-030 e a lista de eliminações não mudam e seguem no IMP-004. Nenhuma regra de negócio existente muda: o job só limpa o resto que a RN-028 e a DEC-142 já mandavam apagar. As regras novas da limpeza (RN-053 a RN-055: lista fechada de estados, sem auditoria quando não há o que apagar, nova tentativa no dia seguinte, ação de auditoria nova, banco indisponível) valem pelo aceite da CHG-020 pelo responsável em 21/11/2026, sem Q nova (AGENTS §5, passo 5).
 
 1. Resumo em linguagem simples
 
@@ -585,8 +585,9 @@ RN-054 — Onde o job pode apagar (DEC-237)
 
 RN-055 — O que o job registra (DEC-237, RN-028)
 1. Log e auditoria trazem só identificadores e contagens: nunca nome de arquivo, caminho, conteúdo nem mensagem de erro do sistema. No erro, o log traz só o nome da classe do erro.
-2. A importação que tinha arquivo a apagar é auditada (ação `LIMPEZA_IMPORTACAO`, entidade ImportacaoFormulario, ator de sistema) com o tenant, o identificador, a quantidade apagada e a quantidade que restou. A importação sem nada a apagar não gera auditoria.
+2. A importação que tinha arquivo a apagar é auditada (ação `LIMPEZA_IMPORTACAO`, entidade ImportacaoFormulario, ator de sistema) com o tenant, o identificador, a quantidade apagada e a quantidade que restou. Campos da auditoria (ENT-013): `entidade` = ImportacaoFormulario, `registro_id` = identificador da importação, `usuario_id` NULL (ator de sistema) e, em `detalhes`, as chaves `arquivos_apagados` e `arquivos_restantes`; se a exclusão falhar, `detalhes` leva também `falha` = verdadeiro e `arquivos_restantes` é maior que 0. A importação sem nada a apagar não gera auditoria.
 3. A execução do dia gera um único log com as contagens (importações verificadas, arquivos apagados e falhas).
+4. Se o banco estiver indisponível, o job não lê estado nem grava auditoria: aborta a execução, registra o log do ERR-046 (só a classe do erro) e alerta o administrador, pedindo para reativar o banco. Não tenta de novo sozinho: só volta a rodar quando o administrador instruir (DEC-237).
 
 5. Modelo e dicionário de dados
 
@@ -813,7 +814,7 @@ Propriedades: entidade, campo técnico, significado, tipo, obrigatório, tamanho
 | campo | campo afetado | varchar | não | 100 | — | — | NULL | não | — | não |
 | ip | IP de origem | inet | não | — | IPv4/IPv6 | — | NULL | não | — | pessoal |
 | canal | canal (web; api; script) | enum | não | — | — | web; api; script | NULL | não | — | não |
-| detalhes | referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215); nunca valores pessoais nem texto livre | jsonb | não | — | JSON | — | NULL | não | — | não |
+| detalhes | referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre | jsonb | não | — | JSON | — | NULL | não | — | não |
 | criado_em | data do evento | timestamp | sim | — | ISO 8601 UTC | — | now() | não | — | não |
 
 5.3 Entidades de apoio (dicionário completo)
@@ -1080,7 +1081,7 @@ Sem `tenant_id`: o login acontece antes de conhecer o tenant (DEC-054). ENT-030 
 | nome_formulario | nome do formulário a criar | varchar | sim | 200 | — | — | — | não | — | não |
 | estado | situação da importação (FL-004) | enum | sim | — | — | enfileirada; aguardando_cota; em_andamento; concluida; falhou | enfileirada | não | — | não |
 | total_paginas | páginas do envio | int | sim | — | — | 1..50 | — | não | — | não |
-| chave_storage | pasta dos arquivos enviados (NULL depois de apagados, RN-049) | varchar | não | 500 | — | — | NULL | não | — | não |
+| chave_storage | pasta dos arquivos enviados (NULL ao fim da importação, antes de os arquivos serem apagados, RN-049; o job da RN-054.3 não depende dele) | varchar | não | 500 | — | — | NULL | não | — | não |
 | formulario_id | formulário criado (só em concluida) | uuid | não | 36 | UUID v4 | — | NULL | não | Formulario.id | não |
 | avisos | ajustes da RN-049 por página e posição no original, sem texto lido | jsonb | não | — | JSON | — | NULL | não | — | não |
 | criada_em | data do pedido | timestamp | sim | — | ISO 8601 UTC | — | now() | não | — | não |
@@ -1274,12 +1275,12 @@ Mensagens: as do RF-004, do RF-006 e do RF-007, e a do ERR-045.
 Estado final: os da FL-001.
 
 **RF-016 — Limpeza diária dos arquivos de importações terminadas (CHG-020, F-21)**
-Quem executa: o sistema, uma vez por dia, sem intervenção da usuária (job de manutenção, PLANO §4.7).
+Quem executa: o sistema, ao menos uma vez por dia civil (fuso `America/Sao_Paulo`), sem intervenção da usuária (job de manutenção, PLANO §4.7).
 Quando pode: todo dia, para as importações em `concluida` ou `falhou` que ainda tenham arquivo na pasta `tenant/<tenant>/importacao/<importação>/` (RN-053).
 Quando não pode: importação em `enfileirada`, `aguardando_cota` ou `em_andamento` (RN-053); pasta sem registro de importação no banco, pasta de outro tenant e pastas de aplicação ou de exportação (RN-054).
 Entradas: o estado e o tenant de cada ImportacaoFormulario, lidos do banco; nenhuma entrada da usuária.
 Sucesso: os arquivos que sobraram são apagados, o campo `chave_storage` fica NULL e a ação é auditada só com identificadores e contagens (RN-055, CA-064). Rodar de novo, sem nada a apagar, termina sem erro (CA-067).
-Erro e timeout: ERR-046 (falha ao apagar uma importação); a falha de uma importação não interrompe as demais (CA-068); o que falhou é tentado de novo no dia seguinte.
+Erro e timeout: ERR-046 (falha ao apagar uma importação); a falha de uma importação não interrompe as demais (CA-068); o que falhou no armazenamento é tentado de novo no dia seguinte. Com o banco indisponível, o job aborta, alerta o administrador para reativar o banco e só roda de novo por instrução dele (RN-055.4).
 Registros alterados: ImportacaoFormulario (só `chave_storage`, para NULL), Auditoria (ação `LIMPEZA_IMPORTACAO`). Nenhuma tabela ou coluna nova.
 Mensagens: nenhuma para a usuária (o job não tem tela); log de erro e auditoria conforme o ERR-046.
 Estado final: o estado da ImportacaoFormulario não muda (FL-004).
@@ -2315,7 +2316,7 @@ E o estado de cada importação não muda
 | Exemplo | Estado | Arquivos na pasta antes | Arquivos depois |
 |---|---|---|---|
 | 1 | `concluida` | `1.jpg` | nenhum |
-| 2 | `falhou` | `1.jpg`, `2.jpg` (a exclusão falhou depois da página 1) | nenhum |
+| 2 | `falhou` | `2.jpg` (o worker apagou a página 1 e a exclusão falhou depois) | nenhum |
 | 3 | `concluida`, de outro tenant "B" | `1.jpg` | nenhum (cada tenant é limpo pela sua pasta) |
 
 CA-065 — O job nunca apaga importação em andamento
@@ -2350,7 +2351,7 @@ E a falha é registrada conforme o ERR-046, só com identificadores e contagens
 CA-069 — Log e auditoria só com identificadores e contagens
 Dado que o job diário apaga `1.jpg` e `2.jpg` da importação "Hábitos"
 Quando o job termina
-Então a auditoria da importação tem a ação `LIMPEZA_IMPORTACAO`, o tenant, o identificador e a quantidade apagada (2) e a que restou (0)
+Então a auditoria da importação tem a ação `LIMPEZA_IMPORTACAO`, o tenant, o identificador e `arquivos_apagados` = 2 e `arquivos_restantes` = 0
 E o log da execução tem só as contagens
 E nem a auditoria nem o log têm `.jpg`, `tenant/`, `importacao/`, conteúdo de arquivo ou mensagem de erro do sistema (RN-028)
 
@@ -2358,7 +2359,7 @@ CA-070 — O job roda uma vez por dia, sozinho
 Dado o processo de jobs de manutenção em execução, com o relógio do sistema no fuso `America/Sao_Paulo`
 Quando o ciclo do processo passa várias vezes no mesmo dia civil e depois o dia seguinte começa
 Então o job executa uma vez no primeiro ciclo de cada dia civil e não executa nos outros ciclos do mesmo dia, sem intervenção da usuária
-E, depois que o processo reinicia, executa no primeiro ciclo (rodar a mais não causa dano, CA-067)
+E, depois que o processo reinicia, executa de novo no primeiro ciclo, o que é permitido (rodar a mais não causa dano, CA-067); o teste controla os ciclos e o dia pelo relógio injetável
 
 8. Rastreabilidade e catálogo de erros
 
@@ -2422,7 +2423,7 @@ Formato Problem Details (RFC 9457). Mensagens exatas em pt-BR. Sem stack trace o
 | ERR-043 | RESERVATION_CONFLICT | 409 | Descontinuado pela CHG-011: sem reserva de aplicação (DEC-112). | Descontinuado. | — | — | CHG-011 | descontinuado |
 | ERR-044 | FORM_IMPORT_FAILED | — | A importação de formulário não reconheceu nenhuma pergunta, ou 3 chamadas à IA falharam na mesma página (estado assíncrono, exibido na consulta da importação). | Não foi possível ler o formulário. Confira o arquivo e tente de novo, ou cadastre as perguntas à mão. | error: form_import_failed (motivo, página) | Importação em `falhou`; nada é criado | RF-011, CA-047 | ativo |
 | ERR-045 | FORM_SELECTION_MISMATCH | 409 | O QR legível de alguma folha do envio (`uploadImages`), da folha acrescentada (`addApplicationPages`) ou da página 1 assinada (`attachSignaturePage`) é de projeto ou formulário diferente do escolhido no envio (DEC-215, DEC-222); com várias folhas divergentes, vale a primeira, na ordem do envio, e o ERR-029 vem antes (DEC-224). | O QR desta digitalização é de outro projeto ou formulário. Selecione o projeto e o formulário corretos e envie de novo. | info: form_selection_mismatch (códigos lidos, sem imagem nem nome de arquivo) | Nada é gravado: no envio, nenhuma aplicação é criada; nos demais, a aplicação fica como estava | RF-006, RF-008, RF-013, RF-015, RN-052, CA-044, CA-052, CA-061 | ativo |
-| ERR-046 | IMPORT_CLEANUP_FAILED | — | O job diário de limpeza (RF-016) não consegue apagar os arquivos de uma importação terminada (armazenamento ou banco indisponível). Não é resposta HTTP: o job não tem tela. | Sem mensagem para a usuária. | error: import_cleanup_failed (só `tenant_id`, `importacao_id`, contagens e o nome da classe do erro, sem caminho, nome de arquivo nem mensagem do sistema, RN-028); auditoria `LIMPEZA_IMPORTACAO` com `falha` | Os arquivos da importação continuam, a limpeza das demais importações e tenants segue, e a importação é tentada de novo no dia seguinte | RF-016, RN-053, RN-054, RN-055, CA-067, CA-068, CA-069 | ativo |
+| ERR-046 | IMPORT_CLEANUP_FAILED | — | O job diário de limpeza (RF-016) não consegue apagar os arquivos de uma importação terminada (armazenamento indisponível; com o banco indisponível vale a RN-055.4). Não é resposta HTTP: o job não tem tela. | Sem mensagem para a usuária. | error: import_cleanup_failed (só `tenant_id`, `importacao_id`, contagens e o nome da classe do erro, sem caminho, nome de arquivo nem mensagem do sistema, RN-028); auditoria `LIMPEZA_IMPORTACAO` com `falha` = verdadeiro (RN-055.2); sem banco não há auditoria, só o log e o alerta ao administrador (RN-055.4) | Os arquivos da importação continuam, a limpeza das demais importações e tenants segue, e a importação é tentada de novo no dia seguinte; com o banco indisponível, o job aborta, alerta o administrador e só roda de novo por instrução dele | RF-016, RN-053, RN-054, RN-055, CA-068, CA-069 | ativo |
 
 9. Questões em aberto (Q)
 
@@ -2576,7 +2577,7 @@ Testes sentinela são casos de teste de alto nível que validam os riscos críti
 
 Reavaliado na v1.3. Itens verificáveis por script são checados no CI por `tools/validar_consistencia.py`; o resultado do script prevalece sobre este texto.
 
-- [x] 1. IDs únicos e rastreáveis: RF-001 a RF-016, RNF-001 a RNF-014, RN-001 a RN-055, ENT-001 a ENT-031, FL-001 a FL-004, TL-001 a TL-015, US-001 a US-014, 65 CAs (CA-001 a CA-070 e CA-014b, sem os retirados na v2.1: CA-010, CA-016, CA-025, CA-026b, CA-034, CA-037b, CA-038 e CA-043), ERR do catálogo (seção 8.2, incluindo os descontinuados), TS-001 a TS-008, DEC-001 a DEC-036 e DEC-054 a DEC-061, DEC-064 a DEC-082 (tabela da REQ; inclui DEC técnicas anteriores à Fase 3, como DEC-007, DEC-022 e DEC-036), DEC-037 a DEC-053, DEC-062 e DEC-063 (técnicas, no PLANO), as DEC seguintes da REQ e do PLANO até a DEC-235, Q-001 a Q-118 e GX-001. Verificado por script (IDs citados existem nos registros).
+- [x] 1. IDs únicos e rastreáveis: RF-001 a RF-016, RNF-001 a RNF-014, RN-001 a RN-055, ENT-001 a ENT-031, FL-001 a FL-004, TL-001 a TL-015, US-001 a US-014, 65 CAs (CA-001 a CA-070 e CA-014b, sem os retirados na v2.1: CA-010, CA-016, CA-025, CA-026b, CA-034, CA-037b, CA-038 e CA-043), ERR do catálogo (seção 8.2, incluindo os descontinuados), TS-001 a TS-008, DEC-001 a DEC-036 e DEC-054 a DEC-061, DEC-064 a DEC-082 (tabela da REQ; inclui DEC técnicas anteriores à Fase 3, como DEC-007, DEC-022 e DEC-036), DEC-037 a DEC-053, DEC-062 e DEC-063 (técnicas, no PLANO), as DEC seguintes da REQ e do PLANO até a DEC-237, Q-001 a Q-118 e GX-001. Verificado por script (IDs citados existem nos registros).
 - [x] 2. BDD com dados concretos: tabelas de exemplos nos CAs de alto risco CA-002, CA-008, CA-012, CA-023, CA-029, CA-030 e CA-032 (adicionadas na v1.3; na v1.2 só o CA-029 tinha tabela).
 - [x] 3. Estados e fluxos fechados: FL-001 com tabela de criação e entradas em `aguardando_cota`; FL-002 com ordem de avaliação explícita; FL-004 com as transições da importação (CHG-014). Estados verificados por script contra o dicionário e o contrato.
 - [x] 4. Dicionário de dados completo: 31 entidades com as 11 propriedades; `registros/dicionario_dados.csv` idêntico, verificado por script.
@@ -2636,5 +2637,6 @@ A revisão independente é obrigatória no nível Completo. O revisor não pode 
 | REV-REQ-023 | 13/11/2026 | Agente revisor-independente (IA, contexto isolado, somente leitura) | 2.9 | 0 | 2 | 3 | 5 | Resolvido | Rodada 4 (focada) da CHG-019, junto com a REV-PLANO-025. Os dois altos vieram das DEC-225 e DEC-226: O-01 e O-02 viraram as Q-112 e Q-113, respondidas como DEC-229 e DEC-230; O-05 virou a Q-114 (DEC-231). Editoriais corrigidos: Dado do CA-061 e do CA-044, exemplos 14 a 16 do CA-061, linha nova da FL-001 (ERR-004 com formulário gravado), rastreio do ERR-004, ERR-018 e RF-015, texto do contrato. O check `contrato` passou com o arquivo de erros aceitos do `oasdiff` (DEC-228) |
 | REV-REQ-024 | 13/11/2026 | Agente revisor-independente (IA, contexto isolado, somente leitura) | 2.9 | 0 | 0 | 5 | 7 | Resolvido | Rodada 5 (focada, a última do ciclo) da CHG-019, junto com a REV-PLANO-026: critério de parada da DEC-073 atingido (0 bloqueantes, 0 altos). Os achados da rodada 4 estavam resolvidos. Os 5 médios e 7 baixos foram registrados no PLANO §12.3 (R5-P01 a R5-P05 e R5-B01 a R5-B07), com responsável e incremento (IMP-010) |
 | REV-REQ-025 | 13/11/2026 | Agente revisor-independente (IA, contexto isolado, somente leitura) | 2.9 | 0 | 0 | 4 | 7 | Resolvido | Rodada 6 (curta e dirigida) da CHG-019, junto com a REV-PLANO-027: critério de parada da DEC-073 atingido (0 bloqueantes, 0 altos). R5-P01 a R5-P05 e R5-B01 a R5-B07 conferidos. Corrigidos sem nova rodada: DEC-232 e DEC-225 (alcance, "outro formulário do mesmo projeto"), DEC-229 (zerar a `versao_id` de outro projeto), ENT-010 (`versao_id` nula em `descartada`), FL-001 (causas de ERR-039 no `identifyApplication`), catálogo do ERR-039, CA-061 (Dado e exemplo 19). R6-03 (versão de papel antigo) virou a Q-118, respondida como DEC-235 |
+| REV-REQ-026 | 21/11/2026 | Agente revisor-independente (IA, contexto isolado, somente leitura) | 2.10 | 0 | 0 | 3 | 6 | Resolvido | Rodada 1 da CHG-020, junto com a REV-PLANO-028: critério de parada da DEC-073 atingido (0 bloqueantes, 0 altos). Corrigidos sem nova rodada: R20-04 (chaves da auditoria e campos da ENT-013), R20-07 (CA-064, exemplo 2), R20-08 ("ao menos uma vez por dia civil" e relógio injetável no CA-070), R20-09 (ENT-031 e RN-054.3), R20-10 (checklist até a DEC-237), R20-12 (ERR-046 sem o CA-067) e R20-11 (impacto da CHG-020 cita o contrato). Decisões do responsável em 21/11/2026: R20-03 (banco indisponível: o job aborta, alerta o administrador e só roda de novo por instrução dele, RN-055.4) e R20-05 (o aceite da CHG-020 cobre as regras novas, sem Q nova) |
 
 Fim do documento `REQ.md`
