@@ -66,6 +66,55 @@ class ErroFL(Exception):
     """Erro de regra do processo: mensagem pensada para aparecer no comentário da tarefa."""
 
 
+class ErroAgente(ErroFL):
+    """A CLI do agente falhou (não é a entrega que errou). credencial=True: chave, acesso ou crédito."""
+    def __init__(self, msg: str, credencial: bool = False):
+        super().__init__(msg)
+        self.credencial = credencial
+
+
+_RX_CREDENCIAL = re.compile(
+    r"credit balance|invalid[ _-]?(?:x-)?api[ _-]?key|authentication[_ ]error|unauthori[sz]ed|forbidden|"
+    r"permission[_ ]error|insufficient[ _](?:balance|quota|credit)|billing|quota exceeded|"
+    r"incorrect api key|access denied", re.I)
+
+
+def ocultar_segredos(txt: str, limite: int = 600) -> str:
+    """Texto seguro para a issue: sem sequências que parecem chave e com tamanho limitado."""
+    txt = re.sub(r"\b(?:sk|key|tok|o1)[-_][A-Za-z0-9_\-]{8,}\b", "[oculto]", txt or "")
+    txt = re.sub(r"\b[A-Za-z0-9_\-]{32,}\b", "[oculto]", txt)
+    txt = " ".join(txt.split())
+    return txt if len(txt) <= limite else txt[:limite] + "…"
+
+
+def diagnosticar_saida_cli(texto: str | None) -> tuple[str | None, bool]:
+    """Lê a saída da CLI do agente. Devolve (erro legível ou None, é erro de credencial/crédito).
+
+    Só considera erro o que a CLI declara (claude: is_error true) ou o que tem status HTTP de
+    acesso; saída normal sem erro devolve (None, False).
+    """
+    if not texto or not texto.strip():
+        return None, False
+    try:
+        j = json.loads(texto)
+    except json.JSONDecodeError:
+        j = None
+    if isinstance(j, list):  # claude pode devolver lista de eventos; o último é o resultado
+        j = next((x for x in reversed(j) if isinstance(x, dict) and "is_error" in x), None)
+    if isinstance(j, dict):
+        if not j.get("is_error"):
+            return None, False
+        status = j.get("api_error_status")
+        detalhe = ocultar_segredos(str(j.get("result") or j.get("error") or ""))
+        partes = [f"a CLI do agente terminou com erro" + (f" (HTTP {status})" if status else "")]
+        if detalhe:
+            partes.append(f"mensagem: {detalhe}")
+        cred = status in (401, 403) or bool(_RX_CREDENCIAL.search(detalhe))
+        return "; ".join(partes), cred
+    resto = ocultar_segredos(texto[-600:])
+    return (None, False) if not _RX_CREDENCIAL.search(resto) else (f"a CLI do agente respondeu: {resto}", True)
+
+
 # ----------------------------------------------------------------------------- utilidades
 def agora() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -551,6 +600,7 @@ class Estado:
     arquivos_builder: list = field(default_factory=list)   # tudo que o BUILDER alterou na tarefa
     testes_modificados: list = field(default_factory=list) # testes que já existiam e o TEST_DESIGNER mudou
     exige_chg: bool = False                                # SPEC com item novo e fonte normativa
+    ultimo_erro: str | None = None                         # motivo da última recusa, para o aviso de limite
 
     def proxima(self) -> dict:
         if self.fase in ("CANCELADA",):
@@ -608,8 +658,14 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
             if t == "TAREFA_CRIADA":
                 st.fase = "NOVA"
             elif t == "ENTREGA_RECUSADA":
-                st.tentativas[d["papel"]] += 1
-                st.feedback = "Sua entrega anterior foi recusada pela máquina:\n" + d["motivo"]
+                st.ultimo_erro = d["motivo"]
+                if d.get("credencial"):
+                    # Falha de chave, acesso ou crédito não é culpa do papel: não gasta tentativa.
+                    st.bloqueio = (f"{d['papel']} não rodou por problema de credencial ou crédito "
+                                   f"(esta falha não gastou tentativa). {d['motivo']}")
+                else:
+                    st.tentativas[d["papel"]] += 1
+                    st.feedback = "Sua entrega anterior foi recusada pela máquina:\n" + d["motivo"]
             elif t == "ENTREGA_ACEITA":
                 p = d["papel"]
                 st.feedback = None
@@ -688,6 +744,8 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                 for papel, n in st.tentativas.items():
                     if n >= limite and not st.bloqueio:
                         st.bloqueio = f"{papel} atingiu o limite de {limite} tentativas"
+                        if st.ultimo_erro:
+                            st.bloqueio += f". Último motivo de recusa: {ocultar_segredos(st.ultimo_erro, 800)}"
             if t == "DECISAO" and d["acao"] == "RETOMAR":
                 st.bloqueio = None
     except (ErroFL, KeyError) as ex:
