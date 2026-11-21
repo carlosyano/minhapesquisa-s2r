@@ -43,7 +43,11 @@ ZONA_PROIBIDA = (".github/**", "tools/spec2run/**", "AGENTS.md", "CLAUDE.md", "G
                  "opencode.jsonc", ".mcp.json")
 MAX_SAIDA = 3000  # caracteres finais da saída de cada comando guardados na evidência
 MAX_PEDIDO = 20000   # caracteres do pedido (corpo da issue) que entram no prompt
-MAX_DIFF = 40000     # caracteres do diff que o REVIEWER recebe; acima disso, você revisa o PR inteiro
+MAX_DIFF = 60000     # caracteres do diff que o REVIEWER recebe (o prompt inteiro cabe em MAX_PROMPT); o que passar disso vai para a lista de "não lido"
+# O que não é código da tarefa e não entra no diff do REVIEWER nem na conta do limite: o registro
+# e as evidências do próprio Spec2Run e os lockfiles (gerados, enormes e sem lógica a revisar).
+DIFF_EXCLUIR = (".spec2run/tarefas", "package-lock.json", "**/package-lock.json", "npm-shrinkwrap.json",
+                "yarn.lock", "pnpm-lock.yaml")
 MAX_PROMPT = 100000  # bytes: o prompt vai como argumento da CLI, e o Linux limita cada argumento a 128 KiB
 # Marcadores que calam uma ferramenta de análise ou desligam teste. Em linha ACRESCENTADA pelo
 # papel, a entrega é recusada: o verde tem de vir do comportamento, não de silenciar o alerta.
@@ -518,6 +522,42 @@ def ler_revisao(md: str) -> str:
     return m.group(1)
 
 
+PARECER_SECOES = ("O que mudou", "Riscos que sobraram", "Recomendação")
+
+
+def ler_parecer(md: str, veredito: str) -> None:
+    """parecer-l4.md: texto para quem decide o L4 sem ler código. A máquina confere a forma
+    e que a recomendação não contradiz o veredito; o conteúdo é do REVIEWER."""
+    if not md.strip():
+        raise ErroFL("parecer-l4.md ausente ou vazio: o REVIEWER do código também entrega o parecer em português simples")
+    faltam = [t for t in PARECER_SECOES if not re.search(rf"^##\s+{re.escape(t)}\s*$", md, re.M)]
+    if faltam:
+        raise ErroFL("parecer-l4.md sem as seções: " + ", ".join(f"'## {t}'" for t in faltam))
+    m = re.search(r"^RECOMENDAÇÃO:\s*(APROVAR|REJEITAR)\s*$", md, re.M)
+    if not m:
+        raise ErroFL("parecer-l4.md sem a linha 'RECOMENDAÇÃO: APROVAR' ou 'RECOMENDAÇÃO: REJEITAR'")
+    if (m.group(1) == "APROVAR") != (veredito == "APROVADO"):
+        raise ErroFL(f"parecer-l4.md recomenda {m.group(1)} mas o veredito é {veredito}")
+    if len(md) > 6000:
+        raise ErroFL("parecer-l4.md passa de 6000 caracteres: seja mais curto, quem lê não é programador")
+
+
+def texto_l4(tarefa_dir: str, st: Estado) -> str:
+    """Parecer do REVIEWER mais o que as máquinas provaram (este bloco vem do registro, não da IA)."""
+    linhas = []
+    if st.passos_green:
+        nomes = {"TESTES": "testes", "BUILD": "compilação", "LINT": "análise de estilo", "COBERTURA": "cobertura de testes",
+                 "SAST": "análise de segurança do código", "SEGREDOS": "busca por senhas e chaves",
+                 "DEPENDENCIAS": "dependências vulneráveis", "LICENCAS": "licenças", "MUTACAO": "teste de mutação",
+                 "CONTRATO": "contrato da API", "PREPARAR": "instalação"}
+        linhas = [f"- {'OK' if ok else 'FALHOU'}: {nomes.get(n, n.lower())}" for n, ok in st.passos_green.items()]
+    cab = "\n\n**O que as máquinas conferiram (registro do Spec2Run, não é opinião da IA):**\n" + (
+        "\n".join(linhas) if linhas else "- sem registro de passos")
+    c = os.path.join(tarefa_dir, "parecer-l4.md")
+    parecer = ler(c)[:6000] if os.path.exists(c) else "(o REVIEWER não entregou parecer)"
+    return f"\n\n**Parecer do REVIEWER, em português simples:**\n\n{parecer}{cab}"
+
+
 # ----------------------------------------------------------------------------- registro
 class Registro:
     """registro.jsonl: uma linha por evento, cada uma com o hash da anterior.
@@ -600,6 +640,8 @@ class Estado:
     arquivos_builder: list = field(default_factory=list)   # tudo que o BUILDER alterou na tarefa
     testes_modificados: list = field(default_factory=list) # testes que já existiam e o TEST_DESIGNER mudou
     exige_chg: bool = False                                # SPEC com item novo e fonte normativa
+    parecer: bool = False                                  # o REVIEWER entregou parecer-l4.md
+    passos_green: dict = field(default_factory=dict)       # passo -> passou, do último GREEN ok
     ultimo_erro: str | None = None                         # motivo da última recusa, para o aviso de limite
 
     def proxima(self) -> dict:
@@ -691,11 +733,14 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                     st.arquivos_builder = sorted(set(st.arquivos_builder) | set(d.get("arquivos_alterados", [])))
                 elif p == "REVIEWER" and d["alvo"] == "codigo":
                     avancar("L3", "REVISADO" if d["veredito"] == "APROVADO" else "L2")
+                    st.parecer = bool(d.get("parecer"))
                     if d["veredito"] == "APROVADO" and d.get("diff_cortado"):
                         # O REVIEWER aprovou sem ler tudo: a máquina não libera o merge sozinha.
-                        st.bloqueio = (f"o diff da tarefa tem {d.get('diff_caracteres')} caracteres e o REVIEWER leu só "
-                                       f"{MAX_DIFF}. Revise você o PR inteiro e comente /s2r retomar para liberar o merge "
-                                       "(ou /s2r rejeitar codigo <motivo>)")
+                        lista = ", ".join(d.get("arquivos_nao_lidos", [])[:15]) or "?"
+                        st.bloqueio = (f"o REVIEWER não leu tudo: o diff (sem registro, evidências e lockfiles) tem "
+                                       f"{d.get('diff_caracteres')} caracteres e o limite é {MAX_DIFF}. Arquivos que ficaram "
+                                       f"de fora: {lista}. Dividir a tarefa em fatias menores é o caminho mais seguro; "
+                                       "para aceitar assim mesmo, comente /s2r retomar (ou /s2r rejeitar codigo <motivo>)")
                     if d["veredito"] == "BLOQUEADO":
                         st.tentativas["BUILDER"] += 1
                         st.feedback = "O REVIEWER bloqueou o código. Corrija os achados de revisao-codigo.md."
@@ -711,6 +756,7 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                     avancar("CODIGO", "L3" if d["ok"] else "L2")
                     if d["ok"]:
                         st.commit_green = d["commit"]
+                        st.passos_green = d.get("passos_resumo", {})
                     else:
                         st.tentativas["BUILDER"] += 1
                         st.feedback = "GREEN falhou:\n" + d["resumo"]
@@ -771,7 +817,7 @@ def escopo_do_papel(papel: str, alvo: str, tarefa_rel: str, cfg: dict) -> tuple[
     if papel == "ARCHITECT":
         return [t + "design.md"], []
     if papel == "REVIEWER":
-        return [t + ("revisao-spec.md" if alvo == "spec" else "revisao-codigo.md")], []
+        return ([t + "revisao-spec.md"] if alvo == "spec" else [t + "revisao-codigo.md", t + "parecer-l4.md"]), []
     if papel == "TEST_DESIGNER":
         return testes + [t + "testes.txt"], list(ZONA_PROIBIDA) + [".spec2run/**/registro.jsonl"]
     if papel == "BUILDER":
@@ -922,7 +968,11 @@ def checar_entrega(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict)
         return {"nivel": s.nivel, "dados": s.dados, "must_ia": s.must_da_ia(), "novos": s.novos,
                 "reqs": len(s.reqs), "cas": len(s.cas)}
     if papel == "REVIEWER":
-        return {"veredito": ler_revisao(ler(caminho(f"revisao-{alvo}.md")))}
+        veredito = ler_revisao(ler(caminho(f"revisao-{alvo}.md")))
+        if alvo == "codigo":
+            ler_parecer(ler(caminho("parecer-l4.md")) if os.path.exists(caminho("parecer-l4.md")) else "", veredito)
+            return {"veredito": veredito, "parecer": True}
+        return {"veredito": veredito}
     if papel == "ARCHITECT":
         checar_design(ler(caminho("design.md")), spec_da_tarefa(repo, tarefa_dir, cfg), ids_de(cfg))
         return {}
@@ -1111,7 +1161,8 @@ def registrar_evidencia(repo: str, tarefa_dir: str, ev: dict, cfg: dict, commit_
     os.makedirs(os.path.join(tarefa_dir, "evidencias"), exist_ok=True)
     with open(os.path.join(tarefa_dir, "evidencias", nome), "w", encoding="utf-8") as f:
         json.dump(ev, f, ensure_ascii=False, indent=2)
-    dados.update({"ok": ok, "arquivo": f"evidencias/{nome}", "resumo": resumo(ev["passos"], problemas)})
+    dados.update({"ok": ok, "arquivo": f"evidencias/{nome}", "resumo": resumo(ev["passos"], problemas),
+                  "passos_resumo": {p["nome"]: p["codigo_saida"] == 0 for p in ev["passos"]}})
     Registro(tarefa_dir).anexar("EVIDENCIA", dados)
     return dados
 
@@ -1232,7 +1283,7 @@ def verificar_pr(repo: str, tarefa_dir: str, cfg: dict, alterados_desde_green: l
     if st.fase != "REVISADO":
         erros.append(f"tarefa na fase {st.fase}; o merge só é liberado em REVISADO")
     rel = os.path.relpath(tarefa_dir, repo).replace(os.sep, "/")
-    permitidos = [f"{rel}/revisao-codigo.md", f"{rel}/registro.jsonl", f"{rel}/evidencias/*"]
+    permitidos = [f"{rel}/revisao-codigo.md", f"{rel}/parecer-l4.md", f"{rel}/registro.jsonl", f"{rel}/evidencias/*"]
     for c in alterados_desde_green:
         if not casa(c, permitidos):
             erros.append(f"{c} mudou depois do GREEN")
@@ -1268,6 +1319,30 @@ def regras_da_spec(repo: str, tarefa_dir: str, cfg: dict) -> str:
     return "\n".join(linhas)
 
 
+def preparar_diff(diff: str, testes_globs: list[str] | None = None, limite: int = MAX_DIFF) -> tuple[str, list[str], int]:
+    """Cabe o diff no limite do REVIEWER sem cortar arquivo ao meio.
+
+    Ordem: código primeiro, testes por último (os testes já passam por RED/GREEN e hash
+    congelado, então são o que menos perde se ficar de fora). Devolve (texto, arquivos não
+    lidos, total de caracteres). Nada é cortado em silêncio: o que ficou de fora é listado.
+    """
+    blocos = re.split(r"(?m)^(?=diff --git )", diff)
+    blocos = [b for b in blocos if b.strip()]
+
+    def nome(b):
+        m = re.match(r"diff --git a/(\S+) b/", b)
+        return m.group(1) if m else "?"
+    eh_teste = lambda b: bool(testes_globs and casa(nome(b), testes_globs))  # noqa: E731
+    ordenados = [b for b in blocos if not eh_teste(b)] + [b for b in blocos if eh_teste(b)]
+    lidos, nao_lidos, usado = [], [], 0
+    for b in ordenados:
+        if usado + len(b) <= limite:
+            lidos.append(b); usado += len(b)
+        else:
+            nao_lidos.append(nome(b))
+    return "".join(lidos), nao_lidos, len(diff)
+
+
 def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, diff: str | None = None) -> str:
     """Prompt = regras fixas + manifesto do papel + contexto da tarefa (como DADO, delimitado)."""
     base = os.path.join(repo, ".spec2run")
@@ -1286,7 +1361,9 @@ def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, 
         if os.path.exists(c) and not (papel == "SPECIFIER" and n == "design.md"):
             anexo(n.upper().replace(".", "_"), ler(c))
     if papel == "REVIEWER" and alvo == "codigo" and diff is not None:
-        anexo("DIFF_DA_TAREFA", diff[:MAX_DIFF] + (f"\n[diff cortado em {MAX_DIFF} caracteres]" if len(diff) > MAX_DIFF else ""))
+        texto, nao_lidos, _ = preparar_diff(diff, cfg["testes"]["globs"])
+        anexo("DIFF_DA_TAREFA", texto + (
+            "\n[ARQUIVOS NÃO INCLUÍDOS POR TAMANHO, você NÃO os viu: " + ", ".join(nao_lidos) + "]" if nao_lidos else ""))
     if papel == "SPECIFIER" or (papel == "REVIEWER" and alvo == "spec"):
         partes.append(regras_da_spec(repo, tarefa_dir, cfg))
     modelo = {"SPECIFIER": "spec.md", "ARCHITECT": "design.md", "REVIEWER": "revisao.md"}.get(papel)
