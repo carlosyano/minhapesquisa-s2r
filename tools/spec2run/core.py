@@ -618,7 +618,8 @@ PROXIMA = {
     "L2":            ("AGENTE", "BUILDER", "codigo"),
     "CODIGO":        ("MAQUINA", "GREEN", "build, lint, testes, SAST, segredos, dependências e os extras do config"),
     "L3":            ("AGENTE", "REVIEWER", "codigo"),
-    "REVISADO":      ("HUMANO", "L4", "revisar o PR e fazer o merge (ou /s2r rejeitar codigo <motivo>); a implantação (L5) pede sua aprovação no Environment"),
+    "REVISADO":      ("HUMANO", "L4", "ler o parecer abaixo e comentar /s2r aprovar codigo (o bot faz o merge quando os checks passarem) ou /s2r rejeitar codigo <motivo>; a implantação (L5) pede sua aprovação no Environment"),
+    "MERGE_APROVADO": ("FIM", "MERGE", "merge aprovado"),
 }
 
 
@@ -653,6 +654,9 @@ class Estado:
         if self.bloqueio:
             return {"tipo": "HUMANO", "gate": "BLOQUEIO", "pedido": f"{self.bloqueio}. Corrija e comente /s2r retomar"}
         tipo, alvo, extra = PROXIMA[self.fase]
+        if tipo == "FIM":
+            return {"tipo": "FIM", "gate": alvo, "motivo": "merge aprovado por você: o bot ativa o merge automático "
+                    "e o PR entra na main sozinho quando todos os checks passarem"}
         if tipo == "AGENTE":
             return {"tipo": tipo, "papel": alvo, "alvo": extra, "tentativa": self.tentativas[alvo] + 1,
                     "feedback": self.feedback}
@@ -762,7 +766,9 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                         st.feedback = "GREEN falhou:\n" + d["resumo"]
             elif t == "DECISAO":
                 acao = d["acao"]
-                if acao == "APROVAR" and d.get("gate") == "TESTES":
+                if acao == "APROVAR" and d.get("gate") == "L4":
+                    avancar("REVISADO", "MERGE_APROVADO")
+                elif acao == "APROVAR" and d.get("gate") == "TESTES":
                     avancar("RED_OK", "L2")
                     st.hash_testes_aprovado = d["hash"]
                 elif acao == "APROVAR":
@@ -1197,6 +1203,10 @@ def decidir(tarefa_dir: str, cfg: dict, autor: str, associacao: str, texto: str,
         if not motivo:
             raise ErroFL("diga o motivo: /s2r rejeitar testes <motivo>")
         dados.update({"acao": "REJEITAR", "gate": "TESTES", "alvo": "testes", "motivo": motivo[:2000]})
+    elif cmd == "aprovar" and st.fase == "REVISADO" and not st.bloqueio:
+        if not resto.startswith("codigo"):
+            raise ErroFL("agora a aprovação é do código: comente /s2r aprovar codigo")
+        dados.update({"acao": "APROVAR", "gate": "L4"})
     elif cmd == "rejeitar" and st.fase == "REVISADO":
         motivo = resto[len("codigo"):].strip() if resto.startswith("codigo") else resto
         if not motivo:
@@ -1204,7 +1214,7 @@ def decidir(tarefa_dir: str, cfg: dict, autor: str, associacao: str, texto: str,
         dados.update({"acao": "REJEITAR", "gate": "L4", "alvo": "codigo", "motivo": motivo[:2000]})
     elif cmd == "aprovar":
         if st.fase != "DESIGN" or st.bloqueio:
-            raise ErroFL(f"nada a aprovar agora (fase {st.fase}). O merge (L4) se aprova no próprio PR")
+            raise ErroFL(f"nada a aprovar agora (fase {st.fase})")
         if st.exige_chg:
             raise ErroFL(f"{', '.join(st.novos)} não existem na fonte normativa: registre por CHG, traga a main "
                          "para a branch e comente /s2r rejeitar spec <use os IDs do CHG>")
@@ -1280,7 +1290,7 @@ def verificar_pr(repo: str, tarefa_dir: str, cfg: dict, alterados_desde_green: l
     erros = []
     if st.bloqueio:
         erros.append(st.bloqueio)
-    if st.fase != "REVISADO":
+    if st.fase not in ("REVISADO", "MERGE_APROVADO"):
         erros.append(f"tarefa na fase {st.fase}; o merge só é liberado em REVISADO")
     rel = os.path.relpath(tarefa_dir, repo).replace(os.sep, "/")
     permitidos = [f"{rel}/revisao-codigo.md", f"{rel}/parecer-l4.md", f"{rel}/registro.jsonl", f"{rel}/evidencias/*"]

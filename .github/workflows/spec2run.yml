@@ -102,6 +102,21 @@ jobs:
             git checkout -q -b "$B"
           fi
           python -P -m spec2run checar-config --repo .
+      - name: Trazer a main para a branch da tarefa (você não precisa usar git)
+        id: atualizar
+        working-directory: repo
+        run: |
+          B="s2r/tarefa-$TAREFA"
+          if git ls-remote --exit-code --heads origin "$B" >/dev/null && ! git merge-base --is-ancestor origin/main HEAD; then
+            falha=""
+            if git merge --no-edit -q origin/main; then
+              # O GITHUB_TOKEN não pode publicar mudança em .github/workflows; se a main trouxe uma, o push é recusado.
+              git push -q origin "$B" && echo "atualizada=true" >> "$GITHUB_OUTPUT" || { git reset -q --hard "origin/$B"; falha="o GitHub recusou o envio (a main mudou arquivos de workflow)"; }
+            else
+              git merge --abort; falha="há conflito entre a main e a branch"
+            fi
+            [ -z "$falha" ] || gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** não consegui trazer a main para a branch da tarefa: $falha. Nada foi alterado. Peça ao assistente para atualizar a branch." || true
+          fi
       - name: Iniciar tarefa (issue marcada)
         if: github.event_name == 'issues'
         working-directory: repo
@@ -142,9 +157,12 @@ jobs:
       - name: Avisar a pessoa
         if: steps.st.outputs.tipo == 'HUMANO' || steps.st.outputs.tipo == 'FIM'
         run: gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/estado.md"
-      - name: Liberar o merge (L4) quando a tarefa chegou a REVISADO
-        if: steps.st.outputs.gate == 'L4'
+      - name: Liberar o merge (L4); com /s2r aprovar codigo, ativar o merge automático
+        if: steps.st.outputs.gate == 'L4' || steps.st.outputs.gate == 'MERGE'
         working-directory: repo
+        env:
+          GATE: ${{ steps.st.outputs.gate }}
+          ATUALIZADA: ${{ steps.atualizar.outputs.atualizada }}
         run: |
           SHA=$(git rev-parse HEAD)
           if python -P -m spec2run verificar-pr --repo . --tarefa "$TAREFA" --base origin/main; then
@@ -158,7 +176,17 @@ jobs:
           # obrigatórios da main (os jobs do ci.yml) nunca apareceriam no PR. O ci.yml precisa
           # ter o gatilho workflow_dispatch (Guia, seção da adaptação ao MinhaPesquisa).
           CI=$(python3 -P -c "import json;print(json.load(open('.spec2run/config.json')).get('ci_do_repositorio',''))")
-          if [ -n "$CI" ]; then gh workflow run "$CI" --ref "s2r/tarefa-$TAREFA"; fi
+          # Na aprovação do merge só reexecuta o CI se a branch foi atualizada agora (commit novo).
+          if [ -n "$CI" ] && { [ "$GATE" = L4 ] || [ "$ATUALIZADA" = true ]; }; then gh workflow run "$CI" --ref "s2r/tarefa-$TAREFA"; fi
+          if [ "$GATE" = MERGE ]; then
+            if [ "$S" = success ]; then
+              # Merge automático: o GitHub faz o merge sozinho quando os checks obrigatórios da main passam.
+              gh pr merge "s2r/tarefa-$TAREFA" --auto --merge || gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** não consegui ativar o merge automático (o repositório precisa permitir auto-merge: Settings > General > Pull Requests > Allow auto-merge). Enquanto isso, faça o merge pelo botão do PR."
+            else
+              gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** o merge não foi ativado porque a verificação falhou. Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
+          fi
       - name: Avisar falha do orquestrador na issue
         if: failure()
         run: >-

@@ -89,6 +89,10 @@ def mensagem(nx: dict, st: core.Estado) -> str:
     """Texto do comentário na issue: o que aconteceu e o que a pessoa precisa fazer."""
     if nx["tipo"] == "HUMANO":
         txt = f"**Spec2Run Light, sua vez ({nx['gate']}):** {nx['pedido']}"
+        cola = {"L1": "/s2r aprovar", "TESTES": "/s2r aprovar testes", "L4": "/s2r aprovar codigo",
+                "BLOQUEIO": "/s2r retomar"}.get(nx["gate"])
+        if cola:
+            txt += f"\n\nPara seguir, copie e cole como comentário nesta issue:\n```\n{cola}\n```"
         if st.feedback:
             txt += f"\n\nÚltimo retorno:\n```\n{st.feedback[:3000]}\n```"
         return txt
