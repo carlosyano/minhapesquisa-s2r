@@ -101,12 +101,13 @@ def mensagem(nx: dict, st: core.Estado) -> str:
 
 def cmd_estado(args):
     nx, _, st = _proxima(args)
+    _, d = _tarefa(args)
     nx["fase"] = st.fase
     if args.formato == "github":
         _saida_github({k: v for k, v in nx.items() if k != "feedback"})
         if args.mensagem_arquivo:
             with open(args.mensagem_arquivo, "w", encoding="utf-8") as f:
-                f.write(mensagem(nx, st))
+                f.write(mensagem(nx, st) + (core.texto_l4(d, st) if nx.get("gate") == "L4" else ""))
     else:
         print(json.dumps(nx, ensure_ascii=False, indent=2))
 
@@ -150,9 +151,8 @@ def cmd_aceitar_entrega(args):
         if papel == "TEST_DESIGNER":
             dados["testes_modificados"] = core.testes_modificados(raw, cfg)
         if papel == "REVIEWER" and alvo == "codigo":
-            n = len(_git(args.repo, "diff", f"{args.base}...HEAD", "--", ".",
-                         ":(exclude).spec2run/tarefas/*/registro.jsonl"))
-            dados.update({"diff_caracteres": n, "diff_cortado": n > core.MAX_DIFF})
+            _, nao_lidos, n = core.preparar_diff(_diff_tarefa(args.repo, args.base), cfg["testes"]["globs"])
+            dados.update({"diff_caracteres": n, "diff_cortado": bool(nao_lidos), "arquivos_nao_lidos": nao_lidos[:30]})
         dados.update({"papel": papel, "alvo": alvo, "arquivos_alterados": caminhos,
                       "fornecedor": nx["fornecedor"], "modelo": nx["modelo"], "tentativa": nx["tentativa"]})
         core.Registro(d).anexar("ENTREGA_ACEITA", dados)
@@ -167,6 +167,16 @@ def cmd_aceitar_entrega(args):
                                                      "fornecedor": nx["fornecedor"], "tentativa": nx["tentativa"]})
         print(f"entrega de {papel} recusada:\n{e}")
         sys.exit(3)
+
+
+def _diff_tarefa(repo: str, base: str) -> str:
+    """Diff da tarefa sem registro, evidências e lockfiles: o mesmo que o REVIEWER recebe."""
+    return _git(repo, "diff", f"{base}...HEAD", "--", ".", *[f":(exclude){x}" for x in core.DIFF_EXCLUIR])
+
+
+def cmd_diff_tarefa(args):
+    with open(args.saida, "w", encoding="utf-8") as f:
+        f.write(_diff_tarefa(args.repo, args.base))
 
 
 def _mostrar(repo: str, rev: str, caminho: str) -> str | None:
@@ -267,6 +277,9 @@ def main(argv=None):
     p = novo("aceitar-entrega", cmd_aceitar_entrega)
     p.add_argument("--base", default="origin/main")
     p.add_argument("--saida-agente")
+    p = novo("diff-tarefa", cmd_diff_tarefa)
+    p.add_argument("--base", default="origin/main")
+    p.add_argument("--saida", required=True)
     novo("evidencia", cmd_evidencia).add_argument("--saida", required=True)
     novo("registrar-evidencia", cmd_registrar_evidencia).add_argument("--arquivo", required=True)
     p = novo("decisao", cmd_decisao)

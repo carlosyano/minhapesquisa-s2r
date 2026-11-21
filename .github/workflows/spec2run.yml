@@ -202,7 +202,7 @@ jobs:
         run: |
           args=(prompt --repo . --tarefa "$TAREFA")
           if [ "$PAPEL" = REVIEWER ] && [ "$ALVO" = codigo ]; then
-            git diff origin/main...HEAD -- . ':(exclude).spec2run/tarefas/*/registro.jsonl' > "$RUNNER_TEMP/diff.txt"
+            python -P -m spec2run diff-tarefa --repo . --tarefa "$TAREFA" --base origin/main --saida "$RUNNER_TEMP/diff.txt"
             args+=(--diff-arquivo "$RUNNER_TEMP/diff.txt")
           fi
           python -P -m spec2run "${args[@]}" > "$RUNNER_TEMP/prompt.md"
