@@ -693,7 +693,7 @@ paths:
         `FORMULARIO_DIVERGENTE_PROSSEGUIU`. `cancelar`: descarta o formulário respondido (aplicação em
         `descartada`; imagens e valores lidos apagados, DEC-077); audita `FORMULARIO_DIVERGENTE_CANCELOU`.
         Aplicação fora de `identificacao_pendente` ou sem o aviso ERR-047 → 409 ERR-018.
-      x-trace: [RF-006, RF-008, RF-013, RN-056, DEC-238, DEC-221, CA-071, CA-072, CA-073]
+      x-trace: [RF-017, RF-006, RF-008, RF-013, RN-056, DEC-238, DEC-239, DEC-221, CA-071, CA-072, CA-073, CA-074]
       security:
         - sessionCookie: []
           csrfToken: []
