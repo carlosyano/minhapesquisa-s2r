@@ -88,6 +88,7 @@ ENT-010 Aplicacao,versao_id,"versão do formulário: a do QR legível ou, sem QR
 ENT-010 Aplicacao,formulario_id,"formulário escolhido no envio, fixo na aplicação (DEC-215, DEC-221); a `versao_id`, quando existe, é dele; nulo só em aplicação anterior à v2.9 sem versão, em `identificacao_pendente` ou `descartada` (DEC-223, DEC-231, DEC-234)",uuid,"sim, exceto DEC-223",36,UUID v4,—,—,não,Formulario.id,não
 ENT-010 Aplicacao,origem_qr,a versão veio do QR (true) ou da escolha da usuária no envio ou no `identifyApplication` (false) (DEC-169); continua true quando a versão informada é a do QR (DEC-180),boolean,sim,—,—,true/false,true,não,—,não
 ENT-010 Aplicacao,diferenca_confirmada,"a usuária seguiu (Prosseguir) depois do aviso de arquivo diferente do formulário escolhido (RN-056, DEC-238); aparece na revisão, não na exportação",boolean,sim,—,—,true/false,false,não,—,não
+ENT-010 Aplicacao,aviso,"aviso vigente da aplicação (ERR-003, ERR-004, ERR-006, ERR-039, ERR-047); NULL sem aviso. A operação `resolveFormMismatch` só vale com o aviso ERR-047 gravado (RN-056)",enum,não,—,—,códigos de erro do catálogo,NULL,não,—,não
 ENT-010 Aplicacao,respondente_id,respondente (só na conclusão),uuid,não,36,UUID v4,—,NULL,não,Respondente.id,pessoal (indireto)
 ENT-010 Aplicacao,data_aplicacao,"data da aplicação (obrigatória em sem_assinatura e concluida); no papel antigo, pode vir do envio, guardada até a localização confirmar a versão e as páginas (DEC-182, DEC-185, DEC-186)",date,não,—,YYYY-MM-DD,não futura,NULL,não,—,pessoal
 ENT-010 Aplicacao,local_aplicacao,"local da aplicação (obrigatório em sem_assinatura e concluida); no papel antigo, pode vir do envio, guardado até a localização confirmar a versão e as páginas (DEC-182, DEC-185, DEC-186)",varchar,não,200,—,—,NULL,não,—,pessoal
@@ -130,7 +131,7 @@ ENT-013 Auditoria,registro_id,ID do registro afetado,uuid,não,36,UUID v4,—,NU
 ENT-013 Auditoria,campo,campo afetado,varchar,não,100,—,—,NULL,não,—,não
 ENT-013 Auditoria,ip,IP de origem,inet,não,—,IPv4/IPv6,—,NULL,não,—,pessoal
 ENT-013 Auditoria,canal,canal (web; api; script),enum,não,—,—,web; api; script,NULL,não,—,não
-ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
+ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (`FORMULARIO_DIVERGENTE_DETECTADO`, `FORMULARIO_DIVERGENTE_PROSSEGUIU` e `FORMULARIO_DIVERGENTE_CANCELOU`: `formulario_id` e `versao_id`, RN-056; ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
 ENT-013 Auditoria,criado_em,data do evento,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
 ENT-014 VinculoUsuarioProjeto,id,identificador do vínculo,uuid,sim,36,UUID v4,—,—,sim,—,não
 ENT-014 VinculoUsuarioProjeto,tenant_id,tenant do vínculo,uuid,sim,36,UUID v4,—,—,não,Tenant.id,não

@@ -692,7 +692,7 @@ paths:
         reconhecidas, em `identificacao_pendente` com ERR-004); grava `diferenca_confirmada` = true e audita
         `FORMULARIO_DIVERGENTE_PROSSEGUIU`. `cancelar`: descarta o formulário respondido (aplicação em
         `descartada`; imagens e valores lidos apagados, DEC-077); audita `FORMULARIO_DIVERGENTE_CANCELOU`.
-        Aplicação fora de `identificacao_pendente` ou sem o aviso ERR-047 → 409 ERR-018.
+        Aplicação fora de `identificacao_pendente` ou sem o aviso ERR-047 → 409 ERR-018. `acao` ausente ou fora do enum → 400 ERR-001. A gravação é condicional ao estado e ao aviso (`estado = identificacao_pendente` e `aviso = ERR-047`): quem perde a corrida com outro pedido recebe 409 ERR-018.
       x-trace: [RF-017, RF-006, RF-008, RF-013, RN-056, DEC-238, DEC-239, DEC-221, CA-071, CA-072, CA-073, CA-074]
       security:
         - sessionCookie: []
@@ -713,6 +713,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Application' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -727,7 +728,7 @@ paths:
       description: |
         Corrige página faltante: mesmas validações do upload (ERR-029, RN-040, DEC-042) e
         reavaliação da tabela de criação da FL-001. Permitido também em projeto arquivado (DEC-098).
-        Folha com QR legível de outro projeto ou formulário → 409 ERR-045, nada é gravado (DEC-222).
+        Folha com QR legível de outro projeto ou formulário → 409 ERR-045, nada é gravado (DEC-222). Sem QR legível, a identificação depois do envio pode terminar no aviso ERR-047 (RN-056).
         Aplicação antiga sem formulário → 409 ERR-018 até o identifyApplication definir o formulário (DEC-226).
         `versao_id` (do formulário da aplicação; de outro formulário do mesmo projeto → 400 ERR-039, nada gravado, DEC-221, DEC-225; as outras
         causas de ERR-039 → 200, folhas gravadas e aviso, DEC-230; a versão inválida não é gravada, DEC-232; a de outro tenant vale como inexistente e é auditada, DEC-233) substitui a escolhida no envio (DEC-169, DEC-180), mas versão de papel antigo não vale
