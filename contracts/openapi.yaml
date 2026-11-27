@@ -2123,7 +2123,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ErrorCode'
           nullable: true
-          description: ERR-004, ERR-039, ERR-047 (arquivo diferente do formulário escolhido, RN-056) ou ERR-003 quando o estado inicial não é em_leitura
+          description: ERR-004, ERR-039 ou ERR-003 quando o estado inicial não é em_leitura
 
     ResolveFormMismatchRequest:
       type: object
