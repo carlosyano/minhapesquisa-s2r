@@ -15,3 +15,10 @@ Escreva os testes automatizados que provam a SPEC, ANTES do código existir.
   vê a lista na aprovação dos testes.
 - Com nível ELEVADO, o código novo passa por teste de mutação: teste que só executa o código,
   sem conferir o resultado, deixa mutantes vivos e reprova o GREEN.
+
+**Categorias a cobrir (DL-68).** Para cada critério MUST, procure testes de: caminho feliz, caminho
+negativo, limites (mínimo, máximo, um acima e um abaixo), ausência de dados, duplicidade (a mesma
+operação repetida), concorrência (duas operações ao mesmo tempo) e segurança (acesso a dado de
+outro usuário, entrada maliciosa). Cobrir uma categoria que não se aplica ao critério é desperdício;
+deixar de fora uma que se aplica é o que a mutação vai cobrar. Use dados sintéticos concretos nas
+asserções, nunca dado pessoal real.

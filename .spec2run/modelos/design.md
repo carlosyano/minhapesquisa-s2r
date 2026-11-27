@@ -9,6 +9,9 @@
 ## Decisões
 - ADR-001 (REQ-00X) <decisão>. Alternativas: <a>; <b>. Por quê: <motivo>.
 
+## Arquivos previstos
+- <caminho de cada arquivo que a tarefa cria ou altera, um por linha>
+
 ## Ameaças
 - AME-001 <ameaça>. Mitigação: <controle>.
 
