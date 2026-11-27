@@ -267,7 +267,7 @@
   "po": [
    "carlosyano"
   ],
-  "delegacao": "",
+  "delegacao": "Autoridade própria: Carlos Yano, dono e PO do MinhaPesquisa, 2026-11-27",
   "exigir_anexo_B": false,
   "_leia": "po: quem aceita critérios e riscos (precisa estar em humanos). delegacao: identificador do documento de delegação por escrito da autoridade do PO, guardado fora do repositório; vazio = os comandos de aceite são recusados (DL-57). exigir_anexo_B: true exige parecer anexado no nível B."
  },
