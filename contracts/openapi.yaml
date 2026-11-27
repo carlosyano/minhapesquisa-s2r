@@ -606,7 +606,7 @@ paths:
         No papel antigo, `data_aplicacao` e `local_aplicacao` viram o padrão do projeto no próprio
         envio (DEC-192) e preenchem as perguntas `nao_consta` quando a localização confirma a versão
         e as páginas (DEC-179, DEC-186, CA-057). Só conta o QR no formato do MinhaPesquisa (DEC-187).
-      x-trace: [RF-006, RF-013, CA-003, CA-004, CA-013, CA-029, CA-039, CA-040, CA-052, CA-053, CA-055, CA-057, RN-040, DEC-029, DEC-169, DEC-179, DEC-180, DEC-182, DEC-185, DEC-186, DEC-187, DEC-192, RF-014, CA-060, DEC-198, RF-015, CA-061, CA-062, DEC-215, DEC-216, DEC-218, DEC-224]
+      x-trace: [RF-006, RF-013, CA-003, CA-004, CA-013, CA-029, CA-039, CA-040, CA-052, CA-053, CA-055, CA-057, RN-040, DEC-029, DEC-169, DEC-179, DEC-180, DEC-182, DEC-185, DEC-186, DEC-187, DEC-192, RF-014, CA-060, DEC-198, RF-015, CA-061, CA-062, DEC-215, DEC-216, DEC-218, DEC-224, RF-017, RN-056, CA-071, CA-072, CA-073, CA-074, CA-075]
       security:
         - sessionCookie: []
           csrfToken: []
@@ -653,7 +653,7 @@ paths:
         Continua inválido → 400 ERR-004 ou ERR-039; em aplicação antiga sem formulário, com versão válida
         do projeto e páginas incompletas, o 400 ERR-004 grava o `formulario_id` da versão, uma única vez, e nada mais, exceto zerar a `versao_id` de outro projeto (DEC-229, DEC-234). Versão de outro tenant, de outro projeto ou
         inexistente → 400 ERR-039, auditado (DEC-100). Próximo estado conforme FL-001.
-      x-trace: [RF-006, RF-013, CA-004, CA-013, CA-039, CA-040, CA-052, CA-053, CA-057, DEC-100, DEC-171, DEC-180, DEC-184, DEC-185, DEC-186, DEC-187, RF-015, DEC-221, DEC-223, DEC-226, DEC-229]
+      x-trace: [RF-006, RF-013, CA-004, CA-013, CA-039, CA-040, CA-052, CA-053, CA-057, DEC-100, DEC-171, DEC-180, DEC-184, DEC-185, DEC-186, DEC-187, RF-015, DEC-221, DEC-223, DEC-226, DEC-229, RF-017, RN-056, CA-071, CA-072, CA-073, CA-074, CA-075]
       security:
         - sessionCookie: []
           csrfToken: []
@@ -689,11 +689,11 @@ paths:
         Sem QR legível, o arquivo não traz alguma pergunta do formulário escolhido (RN-056, DEC-238):
         a aplicação está em `identificacao_pendente` com o aviso ERR-047 e nada foi lido.
         `prosseguir`: a análise continua com o formulário escolhido, que não muda (DEC-221), pelas
-        conferências da RN-052 (200 com a aplicação em `em_leitura` ou, se as páginas não forem
+        conferências da RN-052 (200 com a aplicação em `em_leitura`, em `aguardando_cota` se o teto de custo estiver atingido ou, se as páginas não forem
         reconhecidas, em `identificacao_pendente` com ERR-004); grava `diferenca_confirmada` = true e audita
         `FORMULARIO_DIVERGENTE_PROSSEGUIU`. `cancelar`: descarta o formulário respondido (RN-056, item 6): no envio inicial a aplicação vai a
         `descartada`; depois de um `addApplicationPages`, só as folhas do pedido são removidas e a aplicação volta a
-        `identificacao_pendente` com o aviso anterior; imagens e valores lidos são apagados (DEC-077) e cada folha removida
+        `identificacao_pendente` com o aviso anterior, a versão, a data e o local de antes do pedido; imagens e valores lidos são apagados (DEC-077) e cada folha removida
         gera um registro `descarte_pagina`; audita `FORMULARIO_DIVERGENTE_CANCELOU`.
         Aplicação fora de `identificacao_pendente` ou sem o aviso ERR-047 → 409 ERR-018. `acao` ausente ou fora do enum → 400 ERR-001. A gravação é condicional ao estado e ao aviso (`estado = identificacao_pendente` e `aviso = ERR-047`): quem perde a corrida com outro pedido recebe 409 ERR-018.
       x-trace: [RF-017, RF-006, RF-008, RF-013, RN-056, DEC-238, DEC-239, DEC-240, DEC-241, DEC-221, CA-071, CA-072, CA-073, CA-074, CA-075]
@@ -738,7 +738,7 @@ paths:
         com folha de QR legível (DEC-184); `data_aplicacao` e `local_aplicacao`, quando vierem, substituem
         os gravados no envio, só o que vier, e são aplicados ou apagados ao fim da identificação (DEC-182,
         DEC-185, DEC-186).
-      x-trace: [RF-006, RF-013, CA-013, CA-040, CA-057, RN-040, DEC-098, DEC-169, DEC-180, DEC-182, DEC-184, DEC-185, DEC-186, RF-014, CA-060, DEC-198, RF-015, CA-061, DEC-221, DEC-222, DEC-225, DEC-226, DEC-230]
+      x-trace: [RF-006, RF-013, CA-013, CA-040, CA-057, RN-040, DEC-098, DEC-169, DEC-180, DEC-182, DEC-184, DEC-185, DEC-186, RF-014, CA-060, DEC-198, RF-015, CA-061, DEC-221, DEC-222, DEC-225, DEC-226, DEC-230, RF-017, RN-056, CA-071, CA-072, CA-073, CA-074, CA-075]
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1082,8 +1082,13 @@ paths:
       operationId: discardApplication
       tags: [review]
       summary: Descarta a aplicação com motivo (apaga imagens)
-      description: Descarta a aplicação com motivo (apaga imagens).
-      x-trace: [RF-008, CA-033]
+      description: |
+        Descarta a aplicação com motivo (apaga imagens). Com o aviso ERR-047 pendente, vale como o Cancelar de
+        `resolveFormMismatch` (RN-056, item 4): no envio inicial a aplicação vai a `descartada`; depois de um
+        `addApplicationPages`, só as folhas do pedido são removidas e a aplicação volta a `identificacao_pendente`
+        com o aviso anterior. Audita `FORMULARIO_DIVERGENTE_CANCELOU`. Com o aviso ERR-047, a gravação é condicional
+        ao estado e ao aviso: quem perde a corrida com `resolveFormMismatch` recebe 409 ERR-018.
+      x-trace: [RF-008, RF-017, RN-056, CA-033, CA-075, DEC-240]
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1097,7 +1102,7 @@ paths:
             schema: { $ref: '#/components/schemas/ReasonRequest' }
       responses:
         '200':
-          description: Aplicação descartada
+          description: Aplicação descartada (com o aviso ERR-047 depois de um addApplicationPages, só as folhas do pedido são removidas)
           headers:
             X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' }
           content:
@@ -2175,6 +2180,8 @@ components:
         versao_id: { type: string, format: uuid, nullable: true }
         origem_qr: { type: boolean, description: 'true quando a versão veio do QR, inclusive quando a versão informada no identifyApplication é a do QR (DEC-180); false quando veio da escolha no envio ou de outra versão informada no identifyApplication (DEC-169)' }
         diferenca_confirmada: { type: boolean, description: 'true quando a usuária escolheu Prosseguir depois do aviso ERR-047 (RN-056, DEC-238); mostrada na revisão, não vai à exportação' }
+        cancelar_remove: { type: string, enum: [aplicacao, folhas], nullable: true, description: 'Com o aviso ERR-047 pendente, o que o Cancelar remove: aplicacao (envio inicial, sem aviso_anterior) ou folhas (só as do pedido pendente, depois de um addApplicationPages); nulo sem o aviso (RN-056, item 6, TL-005)' }
+        folhas_pedido_pendente: { type: array, items: { type: integer }, nullable: true, description: 'Números de ordem das folhas do pedido pendente que o Cancelar removeria; nulo sem o aviso ou no envio inicial (RN-056, item 6)' }
         papel_antigo: { type: boolean, description: 'Herdado da versão, só leitura (DEC-173, DEC-175)' }
         estado: { $ref: '#/components/schemas/ApplicationState' }
         assinatura: { type: string, enum: [presente, ausente, nao_conferida] }
