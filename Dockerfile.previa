@@ -1,0 +1,12 @@
+# Prévia do Spec2Run (aceite do PO). Só dados sintéticos (GX-001); não é imagem de produção.
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps ./apps
+COPY packages ./packages
+RUN npm ci
+RUN npm run build
+# O modo de demonstração recusa NODE_ENV=production (DEC-104).
+ENV NODE_ENV=development
+USER node
+CMD ["node", "apps/api/dist/demo/main.js"]

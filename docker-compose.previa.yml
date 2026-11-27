@@ -1,0 +1,40 @@
+# Prévia do Spec2Run Light 1.4 (aceite do PO): `docker compose -f docker-compose.previa.yml up --build`
+# Abra http://127.0.0.1:8080. Só dados sintéticos (GX-001). Tudo some ao encerrar (Ctrl+C e `down -v`).
+#
+# Reaproveita o modo de demonstração do app (DEC-104, DEC-168) com PostgreSQL 17 externo
+# (MP_DEMO_DATABASE_URL): banco descartável, imagens em memória, segredos novos a cada execução.
+# A demonstração só escuta em 127.0.0.1 dentro do contêiner; o `ponte` compartilha a rede do
+# `app` e repassa a porta, e a porta só é publicada em 127.0.0.1 da sua máquina (nunca na rede).
+#
+# Leitura por IA (precisa para aceitar a identificação e a leitura): defina antes, no terminal,
+# MP_DEMO_CHAVE_IA com uma chave Anthropic de teste com limite baixo. Ela fica só em memória,
+# fora de arquivos. Sem a chave, o envio funciona e a leitura fica parada.
+name: minhapesquisa-previa
+services:
+  banco:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: previa-descartavel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.previa
+    depends_on:
+      banco:
+        condition: service_healthy
+    environment:
+      MP_DEMO_DATABASE_URL: postgres://postgres:previa-descartavel@banco:5432/postgres
+      MP_DEMO_PORTA: "8080"
+      MP_DEMO_CHAVE_IA: ${MP_DEMO_CHAVE_IA:-}
+    ports:
+      - "127.0.0.1:8080:8081"
+  ponte:
+    image: alpine/socat:1.8.0.0
+    network_mode: "service:app"
+    depends_on:
+      - app
+    command: TCP-LISTEN:8081,fork,reuseaddr TCP:127.0.0.1:8080
