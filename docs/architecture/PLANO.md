@@ -802,7 +802,7 @@ REQ §8.1; o CI falha se divergirem.
 | RF-014 | RN-009, RN-028, RN-030, RN-037, RN-045, RN-047, RN-049, RN-051 | ENT-008, ENT-011, ENT-025 | FL-001, FL-002 | US-013 | CA-059, CA-060 | — | createVersion, updateVersion, generatePdf, importForm, uploadImages, addApplicationPages, attachSignaturePage, getApplication, openReview, getItemImage, saveReview, confirmApplication, reopenApplication, exportData, getIndividualRecord, executeDataSubjectRequest, processAIReading (interna) | CMP-Forms, CMP-Upload, CMP-MotorIA, CMP-Revisao, CMP-LGPD | IMP-009 |
 | RF-015 | RN-033, RN-036, RN-037, RN-038, RN-041, RN-045, RN-052 | ENT-004, ENT-005, ENT-006, ENT-010, ENT-011, ENT-013, ENT-025 | FL-001, FL-002 | US-014 | CA-061, CA-062, CA-063 | — | createProject, createForm, createVersion, publishVersion, generatePdf, uploadImages, identifyApplication, addApplicationPages, attachSignaturePage, getPageImage, getItemImage, processAIReading (interna) | CMP-Projects, CMP-Forms, CMP-Upload, CMP-MotorIA | IMP-010 |
 | RF-016 | RN-053, RN-054, RN-055 | ENT-031 | FL-004 | — | CA-064, CA-065, CA-066, CA-067, CA-068, CA-069, CA-070 | — | — | CMP-LGPD | IMP-011 |
-| RF-017 | RN-056 | ENT-010 | FL-001 | US-001 | CA-071, CA-072, CA-073, CA-074, CA-075 | — | resolveFormMismatch | CMP-Upload | IMP-012 |
+| RF-017 | RN-056 | ENT-010, ENT-013, ENT-019, ENT-025 | FL-001 | US-001 | CA-071, CA-072, CA-073, CA-074, CA-075 | — | resolveFormMismatch | CMP-Upload | IMP-012 |
 
 ---
 
