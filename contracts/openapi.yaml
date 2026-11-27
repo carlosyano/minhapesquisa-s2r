@@ -777,7 +777,7 @@ paths:
         nula quando não achada (RN-045, DEC-216).
         Permitida em `identificacao_pendente` e nos estados de revisão (FL-001); nos demais →
         ERR-018. Acesso auditado (DEC-099, DEC-112).
-      x-trace: [RF-006, CA-004, CA-013, CA-044, RN-044, DEC-099, DEC-112]
+      x-trace: [RF-006, CA-004, CA-013, CA-044, RN-044, DEC-099, DEC-112, RF-017, RN-056, CA-071, CA-072, CA-073, CA-074, CA-075]
       parameters:
         - $ref: '#/components/parameters/ApplicationId'
         - $ref: '#/components/parameters/PageId'
@@ -2180,7 +2180,7 @@ components:
         versao_id: { type: string, format: uuid, nullable: true }
         origem_qr: { type: boolean, description: 'true quando a versão veio do QR, inclusive quando a versão informada no identifyApplication é a do QR (DEC-180); false quando veio da escolha no envio ou de outra versão informada no identifyApplication (DEC-169)' }
         diferenca_confirmada: { type: boolean, description: 'true quando a usuária escolheu Prosseguir depois do aviso ERR-047 (RN-056, DEC-238); mostrada na revisão, não vai à exportação' }
-        cancelar_remove: { type: string, enum: [aplicacao, folhas], nullable: true, description: 'Com o aviso ERR-047 pendente, o que o Cancelar remove: aplicacao (envio inicial, sem aviso_anterior) ou folhas (só as do pedido pendente, depois de um addApplicationPages); nulo sem o aviso (RN-056, item 6, TL-005)' }
+        cancelar_remove: { type: string, enum: [aplicacao, folhas], nullable: true, description: 'Com o aviso ERR-047 pendente, o que o Cancelar remove: aplicacao (envio inicial, sem lote_pendente) ou folhas (só as do pedido pendente, depois de um addApplicationPages); nulo sem o aviso (RN-056, item 6, TL-005)' }
         folhas_pedido_pendente: { type: array, items: { type: integer }, nullable: true, description: 'Números de ordem das folhas do pedido pendente que o Cancelar removeria; nulo sem o aviso ou no envio inicial (RN-056, item 6)' }
         papel_antigo: { type: boolean, description: 'Herdado da versão, só leitura (DEC-173, DEC-175)' }
         estado: { $ref: '#/components/schemas/ApplicationState' }
