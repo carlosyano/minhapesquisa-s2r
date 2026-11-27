@@ -88,6 +88,7 @@ ENT-010 Aplicacao,versao_id,"versão do formulário: a do QR legível ou, sem QR
 ENT-010 Aplicacao,formulario_id,"formulário escolhido no envio, fixo na aplicação (DEC-215, DEC-221); a `versao_id`, quando existe, é dele; nulo só em aplicação anterior à v2.9 sem versão, em `identificacao_pendente` ou `descartada` (DEC-223, DEC-231, DEC-234)",uuid,"sim, exceto DEC-223",36,UUID v4,—,—,não,Formulario.id,não
 ENT-010 Aplicacao,origem_qr,a versão veio do QR (true) ou da escolha da usuária no envio ou no `identifyApplication` (false) (DEC-169); continua true quando a versão informada é a do QR (DEC-180),boolean,sim,—,—,true/false,true,não,—,não
 ENT-010 Aplicacao,diferenca_confirmada,"a usuária seguiu (Prosseguir) depois do aviso de arquivo diferente do formulário escolhido (RN-056, DEC-238); aparece na revisão, não na exportação",boolean,sim,—,—,true/false,false,não,—,não
+ENT-010 Aplicacao,aviso_anterior,"aviso que a aplicação tinha antes do aviso ERR-047 (ERR-004 ou ERR-039), restaurado pelo Cancelar no `addApplicationPages` (RN-056, item 6); NULL fora disso",enum,não,—,—,códigos de erro do catálogo,NULL,não,—,não
 ENT-010 Aplicacao,aviso,"aviso vigente da aplicação (ERR-003, ERR-004, ERR-006, ERR-039, ERR-047); NULL sem aviso. A operação `resolveFormMismatch` só vale com o aviso ERR-047 gravado (RN-056)",enum,não,—,—,códigos de erro do catálogo,NULL,não,—,não
 ENT-010 Aplicacao,respondente_id,respondente (só na conclusão),uuid,não,36,UUID v4,—,NULL,não,Respondente.id,pessoal (indireto)
 ENT-010 Aplicacao,data_aplicacao,"data da aplicação (obrigatória em sem_assinatura e concluida); no papel antigo, pode vir do envio, guardada até a localização confirmar a versão e as páginas (DEC-182, DEC-185, DEC-186)",date,não,—,YYYY-MM-DD,não futura,NULL,não,—,pessoal
@@ -177,9 +178,10 @@ ENT-018 PedidoTitular,resultado,resultado da execução,text,não,5000,—,—,N
 ENT-018 PedidoTitular,aplicacoes_mesmo_nome,"eliminação de respondente sem CPF: aplicações de papel antigo em andamento com o mesmo nome normalizado, gravadas na execução (DEC-191, DEC-193)",jsonb,não,—,lista de UUID,—,NULL,não,—,pessoal (indireto)
 ENT-019 ListaEliminacoes,id,identificador do registro,uuid,sim,36,UUID v4,—,—,sim,—,não
 ENT-019 ListaEliminacoes,tenant_id,tenant da eliminação,uuid,sim,36,UUID v4,—,—,não,Tenant.id,não
-ENT-019 ListaEliminacoes,motivo,origem do registro,enum,sim,—,—,eliminacao; anonimizacao_reabertura; descarte_aplicacao,eliminacao,não,—,não
+ENT-019 ListaEliminacoes,motivo,origem do registro,enum,sim,—,—,eliminacao; anonimizacao_reabertura; descarte_aplicacao; descarte_pagina,eliminacao,não,—,não
 ENT-019 ListaEliminacoes,respondente_id_original,ID interno do respondente eliminado ou anonimizado,uuid,não,36,UUID v4,—,NULL,não,—,não
 ENT-019 ListaEliminacoes,aplicacao_id,aplicação descartada cujos valores lidos foram apagados (DEC-077),uuid,não,36,UUID v4,—,NULL,não,—,não
+ENT-019 ListaEliminacoes,pagina_aplicacao_id,"folha removida pelo Cancelar do aviso ERR-047 no `addApplicationPages`, de motivo `descarte_pagina` (RN-056, DEC-240); a folha não existe mais, por isso sem FK",uuid,não,36,UUID v4,—,NULL,não,—,não
 ENT-019 ListaEliminacoes,eliminado_em,data da eliminação,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
 ENT-019 ListaEliminacoes,valido_ate,data de expiração do registro,timestamp,sim,—,ISO 8601 UTC,—,eliminado_em + 180 dias,não,—,não
 ENT-020 ParametroConfiguracao,id,identificador do parâmetro,uuid,sim,36,UUID v4,—,—,sim,—,não
