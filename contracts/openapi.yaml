@@ -848,8 +848,8 @@ paths:
       operationId: getApplication
       tags: [review]
       summary: Consulta aplicação
-      description: CPF mascarado; completo só depois de openReview, com auditoria (RN-013).
-      x-trace: [RF-008, RN-013, RF-014, CA-059, CA-060]
+      description: CPF mascarado; completo só depois de openReview, com auditoria (RN-013). Com o aviso ERR-047 pendente (RN-056) traz também `cancelar_remove` e `folhas_pedido_pendente`, para a tela dizer o que o Cancelar remove (TL-005).
+      x-trace: [RF-008, RN-013, RF-014, CA-059, CA-060, RF-017, RN-056, CA-071, CA-073, CA-075]
       parameters:
         - $ref: '#/components/parameters/ApplicationId'
       responses:
