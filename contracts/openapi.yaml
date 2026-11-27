@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
   title: MinhaPesquisa API
-  version: 0.9.1
+  version: 0.9.2
   description: |
     API da aplicação local MinhaPesquisa (DEC-107) — digitalização de pesquisas em papel com
     leitura por IA, revisão humana e dashboards, em conformidade com a LGPD. Uma única usuária,
     com todas as permissões (DEC-109); servida só em 127.0.0.1 (DEC-113).
-    Fonte normativa: REQ v2.10 e PLANO.md v3.24. Contract-first — este arquivo valida
+    Fonte normativa: REQ v2.11 e PLANO.md v3.25. Contract-first — este arquivo valida
     requisição e resposta (DEC-049). Erros seguem RFC 9457 (Problem Details) com catálogo ERR fechado.
     Segurança: a única rota pública (`login`) declara `security: []`; sem MFA (DEC-108);
     demais rotas exigem sessão, e toda mutação exige também o token CSRF (os dois esquemas no
@@ -673,6 +673,46 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Application' }
         '400': { $ref: '#/components/responses/QrInvalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidState' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /applications/{applicationId}/form-mismatch:
+    post:
+      operationId: resolveFormMismatch
+      tags: [upload]
+      summary: Resposta ao aviso de arquivo diferente do formulário escolhido (aplicação em identificacao_pendente com aviso ERR-047)
+      description: |
+        Sem QR legível, o arquivo não traz alguma pergunta do formulário escolhido (RN-056, DEC-238):
+        a aplicação está em `identificacao_pendente` com o aviso ERR-047 e nada foi lido.
+        `prosseguir`: a análise continua com o formulário escolhido, que não muda (DEC-221), pelas
+        conferências da RN-052 (200 com a aplicação em `em_leitura` ou, se as páginas não forem
+        reconhecidas, em `identificacao_pendente` com ERR-004); grava `diferenca_confirmada` = true e audita
+        `FORMULARIO_DIVERGENTE_PROSSEGUIU`. `cancelar`: descarta o formulário respondido (aplicação em
+        `descartada`; imagens e valores lidos apagados, DEC-077); audita `FORMULARIO_DIVERGENTE_CANCELOU`.
+        Aplicação fora de `identificacao_pendente` ou sem o aviso ERR-047 → 409 ERR-018.
+      x-trace: [RF-006, RF-008, RF-013, RN-056, DEC-238, DEC-221, CA-071, CA-072, CA-073]
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ApplicationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveFormMismatchRequest' }
+      responses:
+        '200':
+          description: Aplicação depois da resposta
+          headers:
+            X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1767,7 +1807,7 @@ components:
     ErrorCode:
       type: string
       description: Catálogo fechado de erros ativos (REQ §8.2)
-      enum: [ERR-001, ERR-002, ERR-003, ERR-004, ERR-006, ERR-009, ERR-010, ERR-013, ERR-014, ERR-015, ERR-016, ERR-017, ERR-018, ERR-019, ERR-020, ERR-021, ERR-022, ERR-029, ERR-036, ERR-039, ERR-041, ERR-044, ERR-045, ERR-046]
+      enum: [ERR-001, ERR-002, ERR-003, ERR-004, ERR-006, ERR-009, ERR-010, ERR-013, ERR-014, ERR-015, ERR-016, ERR-017, ERR-018, ERR-019, ERR-020, ERR-021, ERR-022, ERR-029, ERR-036, ERR-039, ERR-041, ERR-044, ERR-045, ERR-046, ERR-047]
 
     ApplicationState:
       type: string
@@ -2079,7 +2119,15 @@ components:
           allOf:
             - $ref: '#/components/schemas/ErrorCode'
           nullable: true
-          description: ERR-004, ERR-039 ou ERR-003 quando o estado inicial não é em_leitura
+          description: ERR-004, ERR-039, ERR-047 (arquivo diferente do formulário escolhido, RN-056) ou ERR-003 quando o estado inicial não é em_leitura
+
+    ResolveFormMismatchRequest:
+      type: object
+      additionalProperties: false
+      description: Resposta da usuária ao aviso ERR-047 (RN-056, DEC-238)
+      required: [acao]
+      properties:
+        acao: { type: string, enum: [prosseguir, cancelar] }
 
     IdentifyRequest:
       type: object
@@ -2122,11 +2170,12 @@ components:
         formulario_id: { type: string, format: uuid, nullable: true, description: 'Formulário escolhido no envio, fixo na aplicação (DEC-215, DEC-221); nulo só em aplicação anterior à 0.9.0 sem versão, até o identifyApplication gravar o formulário da versão informada, ou em identificacao_pendente ou descartada (DEC-223, DEC-231, DEC-234)' }
         versao_id: { type: string, format: uuid, nullable: true }
         origem_qr: { type: boolean, description: 'true quando a versão veio do QR, inclusive quando a versão informada no identifyApplication é a do QR (DEC-180); false quando veio da escolha no envio ou de outra versão informada no identifyApplication (DEC-169)' }
+        diferenca_confirmada: { type: boolean, description: 'true quando a usuária escolheu Prosseguir depois do aviso ERR-047 (RN-056, DEC-238); mostrada na revisão, não vai à exportação' }
         papel_antigo: { type: boolean, description: 'Herdado da versão, só leitura (DEC-173, DEC-175)' }
         estado: { $ref: '#/components/schemas/ApplicationState' }
         assinatura: { type: string, enum: [presente, ausente, nao_conferida] }
         aviso:
-          description: 'Aviso da identificação ou da leitura: ERR-003, ERR-004, ERR-006, ERR-039 (inclusive versão inválida não gravada no uploadImages e no addApplicationPages, DEC-230, DEC-232) ou ERR-018'
+          description: 'Aviso da identificação ou da leitura: ERR-003, ERR-004, ERR-006, ERR-047 (arquivo diferente do formulário escolhido, RN-056), ERR-039 (inclusive versão inválida não gravada no uploadImages e no addApplicationPages, DEC-230, DEC-232) ou ERR-018'
           allOf:
             - $ref: '#/components/schemas/ErrorCode'
           nullable: true
