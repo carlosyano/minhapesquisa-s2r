@@ -87,6 +87,9 @@ ENT-010 Aplicacao,projeto_id,projeto da aplicação,uuid,sim,36,UUID v4,—,—,
 ENT-010 Aplicacao,versao_id,"versão do formulário: a do QR legível ou, sem QR legível, a escolhida no envio ou no `identifyApplication` (DEC-169, DEC-180); pode ficar NULL só em identificacao_pendente ou em descartada vinda de um estado sem versão (DEC-231)",uuid,não,36,UUID v4,—,NULL,não,Versao.id,não
 ENT-010 Aplicacao,formulario_id,"formulário escolhido no envio, fixo na aplicação (DEC-215, DEC-221); a `versao_id`, quando existe, é dele; nulo só em aplicação anterior à v2.9 sem versão, em `identificacao_pendente` ou `descartada` (DEC-223, DEC-231, DEC-234)",uuid,"sim, exceto DEC-223",36,UUID v4,—,—,não,Formulario.id,não
 ENT-010 Aplicacao,origem_qr,a versão veio do QR (true) ou da escolha da usuária no envio ou no `identifyApplication` (false) (DEC-169); continua true quando a versão informada é a do QR (DEC-180),boolean,sim,—,—,true/false,true,não,—,não
+ENT-010 Aplicacao,diferenca_confirmada,"a usuária seguiu (Prosseguir) depois do aviso de arquivo diferente do formulário escolhido (RN-056, DEC-238); aparece na revisão, não na exportação",boolean,sim,—,—,true/false,false,não,—,não
+ENT-010 Aplicacao,aviso_anterior,"aviso que a aplicação tinha antes do aviso ERR-047 (ERR-004 ou ERR-039), restaurado pelo Cancelar no `addApplicationPages` (RN-056, item 6); NULL fora disso",enum,não,—,—,códigos de erro do catálogo,NULL,não,—,não
+ENT-010 Aplicacao,aviso,"aviso vigente da aplicação (ERR-003, ERR-004, ERR-006, ERR-018, ERR-039, ERR-047); NULL sem aviso. A operação `resolveFormMismatch` só vale com o aviso ERR-047 gravado (RN-056)",enum,não,—,—,códigos de erro do catálogo,NULL,não,—,não
 ENT-010 Aplicacao,respondente_id,respondente (só na conclusão),uuid,não,36,UUID v4,—,NULL,não,Respondente.id,pessoal (indireto)
 ENT-010 Aplicacao,data_aplicacao,"data da aplicação (obrigatória em sem_assinatura e concluida); no papel antigo, pode vir do envio, guardada até a localização confirmar a versão e as páginas (DEC-182, DEC-185, DEC-186)",date,não,—,YYYY-MM-DD,não futura,NULL,não,—,pessoal
 ENT-010 Aplicacao,local_aplicacao,"local da aplicação (obrigatório em sem_assinatura e concluida); no papel antigo, pode vir do envio, guardado até a localização confirmar a versão e as páginas (DEC-182, DEC-185, DEC-186)",varchar,não,200,—,—,NULL,não,—,pessoal
@@ -129,7 +132,7 @@ ENT-013 Auditoria,registro_id,ID do registro afetado,uuid,não,36,UUID v4,—,NU
 ENT-013 Auditoria,campo,campo afetado,varchar,não,100,—,—,NULL,não,—,não
 ENT-013 Auditoria,ip,IP de origem,inet,não,—,IPv4/IPv6,—,NULL,não,—,pessoal
 ENT-013 Auditoria,canal,canal (web; api; script),enum,não,—,—,web; api; script,NULL,não,—,não
-ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
+ENT-013 Auditoria,detalhes,"referências adicionais em lista fechada por ação (`FORMULARIO_DIVERGENTE_DETECTADO`, `FORMULARIO_DIVERGENTE_PROSSEGUIU` e `FORMULARIO_DIVERGENTE_CANCELOU`: `formulario_id` e `versao_id`, RN-056; ex.: filtro_aplicado com códigos de pergunta e opção; `form_selection_mismatch` com `projeto_qr` e `formulario_qr`, DEC-215; `LIMPEZA_IMPORTACAO` com `arquivos_apagados`, `arquivos_restantes` e `falha`, RN-055); nunca valores pessoais nem texto livre",jsonb,não,—,JSON,—,NULL,não,—,não
 ENT-013 Auditoria,criado_em,data do evento,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
 ENT-014 VinculoUsuarioProjeto,id,identificador do vínculo,uuid,sim,36,UUID v4,—,—,sim,—,não
 ENT-014 VinculoUsuarioProjeto,tenant_id,tenant do vínculo,uuid,sim,36,UUID v4,—,—,não,Tenant.id,não
@@ -175,9 +178,10 @@ ENT-018 PedidoTitular,resultado,resultado da execução,text,não,5000,—,—,N
 ENT-018 PedidoTitular,aplicacoes_mesmo_nome,"eliminação de respondente sem CPF: aplicações de papel antigo em andamento com o mesmo nome normalizado, gravadas na execução (DEC-191, DEC-193)",jsonb,não,—,lista de UUID,—,NULL,não,—,pessoal (indireto)
 ENT-019 ListaEliminacoes,id,identificador do registro,uuid,sim,36,UUID v4,—,—,sim,—,não
 ENT-019 ListaEliminacoes,tenant_id,tenant da eliminação,uuid,sim,36,UUID v4,—,—,não,Tenant.id,não
-ENT-019 ListaEliminacoes,motivo,origem do registro,enum,sim,—,—,eliminacao; anonimizacao_reabertura; descarte_aplicacao,eliminacao,não,—,não
+ENT-019 ListaEliminacoes,motivo,origem do registro,enum,sim,—,—,eliminacao; anonimizacao_reabertura; descarte_aplicacao; descarte_pagina,eliminacao,não,—,não
 ENT-019 ListaEliminacoes,respondente_id_original,ID interno do respondente eliminado ou anonimizado,uuid,não,36,UUID v4,—,NULL,não,—,não
-ENT-019 ListaEliminacoes,aplicacao_id,aplicação descartada cujos valores lidos foram apagados (DEC-077),uuid,não,36,UUID v4,—,NULL,não,—,não
+ENT-019 ListaEliminacoes,aplicacao_id,"aplicação descartada cujos valores lidos foram apagados (DEC-077), ou aplicação da folha removida no `descarte_pagina` (DEC-240)",uuid,não,36,UUID v4,—,NULL,não,—,não
+ENT-019 ListaEliminacoes,pagina_aplicacao_id,"folha removida pelo Cancelar do aviso ERR-047 no `addApplicationPages`, de motivo `descarte_pagina` (RN-056, DEC-240); a folha não existe mais, por isso sem FK",uuid,não,36,UUID v4,—,NULL,não,—,não
 ENT-019 ListaEliminacoes,eliminado_em,data da eliminação,timestamp,sim,—,ISO 8601 UTC,—,now(),não,—,não
 ENT-019 ListaEliminacoes,valido_ate,data de expiração do registro,timestamp,sim,—,ISO 8601 UTC,—,eliminado_em + 180 dias,não,—,não
 ENT-020 ParametroConfiguracao,id,identificador do parâmetro,uuid,sim,36,UUID v4,—,—,sim,—,não
@@ -223,6 +227,8 @@ ENT-025 PaginaAplicacao,numero_pagina,"página da versão: a do QR ou, sem QR, a
 ENT-025 PaginaAplicacao,chave_storage,chave do objeto no bucket privado,varchar,sim,500,—,—,—,sim,—,não
 ENT-025 PaginaAplicacao,sha256,hash do arquivo sem metadados,bytea,sim,32,SHA-256,—,—,não,—,não
 ENT-025 PaginaAplicacao,ordem_envio,"posição da folha na aplicação, na ordem do envio, a partir de 1; as folhas do `addApplicationPages` e do `attachSignaturePage` continuam a sequência, e as descartadas no `identifyApplication` não liberam o número (DEC-198)",int,sim,—,—,≥ 1,—,sim (por aplicação),—,não
+ENT-025 PaginaAplicacao,perguntas_reconhecidas,"códigos das perguntas que a identificação reconheceu na folha (DEC-241); base da comparação da RN-056 e do Prosseguir, sem nova chamada de IA",jsonb,não,—,lista de códigos,—,NULL,não,—,não
+ENT-025 PaginaAplicacao,lote_envio,"identificador do pedido (`uploadImages` ou `addApplicationPages`) que trouxe a folha; o Cancelar remove as folhas do pedido (RN-056, item 6)",uuid,sim,36,UUID v4,—,—,não,—,não
 ENT-025 PaginaAplicacao,nome_arquivo,"nome original do arquivo enviado de onde veio a página, sem a pasta, cortado em 255 caracteres (DEC-198); apagado (NULL) no expurgo da imagem e no ato da eliminação do titular, inclusive nas aplicações descartadas por ela (DEC-206, DEC-210); NULL nas páginas enviadas antes da migração 0010 (IMP-009)",varchar,não,255,—,—,NULL,não,—,pessoal
 ENT-025 PaginaAplicacao,registro_ok,"marcadores dos cantos encontrados (DEC-048); desde a DEC-169 só informativo, não impede a leitura",boolean,sim,—,—,true/false,false,não,—,não
 ENT-025 PaginaAplicacao,regioes,"regiões dos campos da página (e, na página 1, a da assinatura) devolvidas pela leitura da página inteira (DEC-216), em coordenadas normalizadas da imagem, com a confiança (RN-052)",jsonb,não,—,JSON,—,NULL,não,—,não
