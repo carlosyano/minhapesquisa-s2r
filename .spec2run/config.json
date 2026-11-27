@@ -85,7 +85,7 @@
    "fornecedor": "anthropic",
    "ferramenta": "claude-code",
    "versao_ferramenta": "2.1.326",
-   "modelo": "claude-opus-5-5",
+   "modelo": "claude-sonnet-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
    "ambiente": "s2r-risk-reporter",
    "plano": "api_por_uso"
