@@ -42,7 +42,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "deepseek/deepseek-v4-pro",
    "variavel_chave": "DEEPSEEK_API_KEY",
-   "ambiente": "s2r-specifier"
+   "ambiente": "s2r-specifier",
+   "plano": "api_por_uso"
   },
   "ARCHITECT": {
    "fornecedor": "anthropic",
@@ -50,7 +51,8 @@
    "versao_ferramenta": "2.1.326",
    "modelo": "claude-opus-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
-   "ambiente": "s2r-architect"
+   "ambiente": "s2r-architect",
+   "plano": "api_por_uso"
   },
   "TEST_DESIGNER": {
    "fornecedor": "alibaba",
@@ -58,7 +60,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "alibaba-sg/qwen4-max",
    "variavel_chave": "DASHSCOPE_API_KEY",
-   "ambiente": "s2r-test-designer"
+   "ambiente": "s2r-test-designer",
+   "plano": "plano_pessoal"
   },
   "BUILDER": {
    "fornecedor": "deepseek",
@@ -66,7 +69,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "deepseek/deepseek-flash",
    "variavel_chave": "DEEPSEEK_API_KEY",
-   "ambiente": "s2r-builder"
+   "ambiente": "s2r-builder",
+   "plano": "api_por_uso"
   },
   "REVIEWER": {
    "fornecedor": "anthropic",
@@ -74,7 +78,8 @@
    "versao_ferramenta": "2.1.326",
    "modelo": "claude-opus-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
-   "ambiente": "s2r-reviewer"
+   "ambiente": "s2r-reviewer",
+   "plano": "api_por_uso"
   },
   "RISK_REPORTER": {
    "fornecedor": "anthropic",
@@ -82,7 +87,8 @@
    "versao_ferramenta": "2.1.326",
    "modelo": "claude-opus-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
-   "ambiente": "s2r-risk-reporter"
+   "ambiente": "s2r-risk-reporter",
+   "plano": "api_por_uso"
   }
  },
  "ferramentas": {
@@ -251,7 +257,17 @@
   "_leia_chamadas": "Teto por TAREFA em número de chamadas de IA (todas as entregas de agente, aceitas ou recusadas). Vale para qualquer fornecedor, mesmo sem custo informado. Valor inicial a revisar depois de 5 tarefas medidas.",
   "_leia_diff": "Caracteres do diff que o REVIEWER lê numa chamada (sem registro, evidências e lockfiles). Para um fornecedor de revisor com janela diferente: diff_max_por_fornecedor: {\"anthropic\": 90000}. Acima disso, com revisao_em_partes true (DL-61), o diff real é dividido por grupos de arquivos e revisado em até revisao_partes_max chamadas dentro do mesmo PR; cada parte conta como uma chamada em chamadas_por_tarefa. O que não couber nas partes (arquivo maior que o limite ou excedente) fica sem leitura e vira risco de nível A. arquivos_max_por_tarefa é um teto de referência: o design deve listar os arquivos previstos (seção obrigatória) e, acima do teto, o L1 recebe um AVISO para você considerar pedir uma fatia menor; não recusa o design. Não há teto de critérios de aceite (DL-61). O valor inicial deve ser revisado depois de 5 tarefas medidas. Com revisao_em_partes false, volta ao comportamento da DL-60: acima do limite é risco A e o SPECIFIER deve fatiar a tarefa."
  },
- "green_ordem": ["LINT", "BUILD", "TIPOS", "TESTES", "COBERTURA", "SAST", "SEGREDOS", "DEPENDENCIAS", "LICENCAS"],
+ "green_ordem": [
+  "LINT",
+  "BUILD",
+  "TIPOS",
+  "TESTES",
+  "COBERTURA",
+  "SAST",
+  "SEGREDOS",
+  "DEPENDENCIAS",
+  "LICENCAS"
+ ],
  "_leia_green_ordem": "Ordem dos passos do GREEN. Tem de ser a mesma do ci.yml do repositório: confira na instalação com python -P -m spec2run verificar-ordem-ci (DL-60). Os passos de green_extra e a MUTACAO vêm depois.",
  "_leia_plano": "Declare em cada papel de 'papeis' o campo \"plano\": \"api_por_uso\" ou \"plano_pessoal\". Plano pessoal (cujos termos podem proibir automação) só é aceito com plano_pessoal_risco_assumido: {\"motivo\": ..., \"decidido_por\": <alguém de humanos>, \"em\": <data>}; vira risco B em toda tarefa. Quem adota o processo escolhe: assumir o risco ou usar pay-as-you-go (DL-60).",
  "ci_do_repositorio": "ci.yml",
@@ -281,5 +297,10 @@
   "alteracao_grande_linhas": 800,
   "dados_reais_permitir": [],
   "_leia": "agregar_c_acima_de: mais de N achados baixos ou médios do mesmo tipo sobem para o nível B. dados_reais_permitir: expressões regulares de CPFs e e-mails SINTÉTICOS conhecidos que a varredura de dado real deve ignorar (ex.: \"^123\\\\.?456\\\\.?789-?09$\"). O catálogo de riscos e os níveis ficam no código (tools/spec2run/riscos.py), não aqui, para a configuração não rebaixar risco."
+ },
+ "plano_pessoal_risco_assumido": {
+  "motivo": "Os termos do Token Plan Personal da Alibaba proíbem automação (risco de suspensão e banimento da chave); Carlos decidiu manter o plano e aceitar o risco (DL-51). Reavaliar antes de uso em produção.",
+  "decidido_por": "carlosyano",
+  "em": "2026-11-21"
  }
 }
