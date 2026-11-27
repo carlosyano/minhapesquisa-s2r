@@ -22,9 +22,33 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-VERSAO = "1.0"
+VERSAO = "1.4"
 NOME = "Spec2Run Light"
 PAPEIS = ("SPECIFIER", "ARCHITECT", "TEST_DESIGNER", "BUILDER", "REVIEWER")
+PAPEL_RELATOR = "RISK_REPORTER"   # 1.4: escreve o relatório de riscos (só existe no fluxo 1.4)
+FLUXOS = ("1.1", "1.4")
+MODOS_PREVIA = ("homologacao", "docker_local")   # 1.4: producao_restrita eliminado (DL-60)
+PLANOS_IA = ("api_por_uso", "plano_pessoal")
+# Pares de papéis cuja separação de fornecedor é regra bloqueante (DL-56). A única saída é uma
+# exceção escrita no config.json por decisão humana, que passa a ser risco de nível B.
+PARES_BLOQUEANTES = (("REVIEWER", "SPECIFIER"), ("REVIEWER", "BUILDER"), ("RISK_REPORTER", "BUILDER"))
+
+
+def fluxo(cfg: dict) -> str:
+    """'1.1' (L4 aprova código) ou '1.4' (aceite do PO e riscos). Sem o campo, vale 1.1."""
+    return str((cfg or {}).get("fluxo", "1.1"))
+
+
+def papeis_do_fluxo(cfg: dict) -> tuple:
+    return PAPEIS + ((PAPEL_RELATOR,) if fluxo(cfg) == "1.4" else ())
+
+
+def excecao_diversidade(cfg: dict, a: str, b: str) -> dict | None:
+    """Exceção humana registrada no config.json para o par (a, b), se houver."""
+    for x in cfg.get("diversidade_excecoes") or []:
+        if set(x.get("papeis", [])) == {a, b}:
+            return x
+    return None
 TIPOS_REQ = ("FUNCIONAL", "NAO_FUNCIONAL", "SEGURANCA", "PRIVACIDADE", "OPERACIONAL")
 PRIORIDADES = ("MUST", "SHOULD", "COULD")
 ORIGENS = ("USUARIO", "IA_INFERIDO", "IA_RECOMENDADO")
@@ -43,11 +67,12 @@ ZONA_PROIBIDA = (".github/**", "tools/spec2run/**", "AGENTS.md", "CLAUDE.md", "G
                  "opencode.jsonc", ".mcp.json")
 MAX_SAIDA = 3000  # caracteres finais da saída de cada comando guardados na evidência
 MAX_PEDIDO = 20000   # caracteres do pedido (corpo da issue) que entram no prompt
-MAX_DIFF = 60000     # caracteres do diff que o REVIEWER recebe (o prompt inteiro cabe em MAX_PROMPT); o que passar disso vai para a lista de "não lido"
+MAX_DIFF = 60000   # padrão; configurável em limites.diff_max_caracteres (e por fornecedor do REVIEWER)     # caracteres do diff que o REVIEWER recebe (o prompt inteiro cabe em MAX_PROMPT); o que passar disso vai para a lista de "não lido"
 # O que não é código da tarefa e não entra no diff do REVIEWER nem na conta do limite: o registro
 # e as evidências do próprio Spec2Run e os lockfiles (gerados, enormes e sem lógica a revisar).
 DIFF_EXCLUIR = (".spec2run/tarefas", "package-lock.json", "**/package-lock.json", "npm-shrinkwrap.json",
                 "yarn.lock", "pnpm-lock.yaml")
+MAX_PARTES_REVISAO = 4  # padrão de limites.revisao_partes_max: quantas chamadas ao REVIEWER um diff grande pode custar
 MAX_PROMPT = 100000  # bytes: o prompt vai como argumento da CLI, e o Linux limita cada argumento a 128 KiB
 # Marcadores que calam uma ferramenta de análise ou desligam teste. Em linha ACRESCENTADA pelo
 # papel, a entrega é recusada: o verde tem de vir do comportamento, não de silenciar o alerta.
@@ -176,7 +201,9 @@ def validar_config(cfg: dict) -> None:
     """Regras que a configuração não pode quebrar. Falha aqui bloqueia a fábrica inteira."""
     erros = []
     papeis = cfg.get("papeis", {})
-    for p in PAPEIS:
+    if fluxo(cfg) not in FLUXOS:
+        erros.append(f"fluxo deve ser um de {FLUXOS}")
+    for p in papeis_do_fluxo(cfg):
         r = papeis.get(p)
         if not r:
             erros.append(f"papel {p} sem rota em config.json"); continue
@@ -198,7 +225,7 @@ def validar_config(cfg: dict) -> None:
         if r.get("ambiente") and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", r["ambiente"]):
             erros.append(f"{p}: ambiente inválido")
     # Uma chave por papel: se uma vazar, você revoga só aquele papel, e o consumo fica separado.
-    ambientes = [papeis[p]["ambiente"] for p in PAPEIS if p in papeis and papeis[p].get("ambiente")]
+    ambientes = [papeis[p]["ambiente"] for p in papeis_do_fluxo(cfg) if p in papeis and papeis[p].get("ambiente")]
     if len(set(ambientes)) != len(ambientes):
         erros.append("cada papel precisa de um GitHub Environment próprio (chave de API separada)")
     for regra in cfg.get("diversidade", []):
@@ -208,10 +235,21 @@ def validar_config(cfg: dict) -> None:
             forn = {papeis.get(p, {}).get("fornecedor") for p in regra["papeis"]}
             if len(forn) < len(regra["papeis"]):
                 erros.append(f"diversidade BLOCK violada: {regra['papeis']} no mesmo fornecedor")
-    # O revisor nunca pode ser do mesmo fornecedor de quem ele revisa: isso não é configurável.
-    for autor in ("SPECIFIER", "BUILDER"):
-        if papeis.get(autor, {}).get("fornecedor") == papeis.get("REVIEWER", {}).get("fornecedor"):
-            erros.append(f"REVIEWER e {autor} no mesmo fornecedor: o revisor revisaria o próprio fornecedor")
+    # O revisor nunca pode ser do mesmo fornecedor de quem ele revisa (DL-56). Só uma exceção humana
+    # registrada em diversidade_excecoes (motivo, quem decidiu, data) permite, e ela vira risco B.
+    for x in cfg.get("diversidade_excecoes") or []:
+        par = tuple(x.get("papeis", []))
+        if len(par) != 2 or not any(set(par) == set(pb) for pb in PARES_BLOQUEANTES):
+            erros.append(f"diversidade_excecoes: par inválido {par}")
+        if not (x.get("motivo") and x.get("decidido_por") in cfg.get("humanos", []) and x.get("em")):
+            erros.append(f"diversidade_excecoes {par}: precisa de motivo, decidido_por (alguém de 'humanos') e em (data)")
+    for papel_a, autor in PARES_BLOQUEANTES:
+        if papel_a == PAPEL_RELATOR and fluxo(cfg) != "1.4":
+            continue
+        if papeis.get(autor, {}).get("fornecedor") == papeis.get(papel_a, {}).get("fornecedor") \
+                and not excecao_diversidade(cfg, papel_a, autor):
+            erros.append(f"{papel_a} e {autor} no mesmo fornecedor: {papel_a} ficaria sem independência "
+                         "(exceção só por decisão humana registrada em diversidade_excecoes)")
     cmds = cfg.get("comandos", {})
     for passo in PASSOS_MINIMOS_GREEN:
         if not (cmds.get(passo) or {}).get("cmd"):
@@ -267,10 +305,74 @@ def validar_config(cfg: dict) -> None:
         erros.append("MUTACAO.cmd_arquivos precisa de {arquivos} e de 'mutaveis' (globs do código a mutar)")
     if not cfg.get("humanos"):
         erros.append("humanos vazio: ninguém poderia aprovar")
+    if fluxo(cfg) == "1.4":
+        _validar_v14(cfg, erros)
     for caminho in _pendencias(cfg):
         erros.append(f"preencha {caminho} (ainda está com <VALIDAR ...>)")
     if erros:
         raise ErroFL("configuração inválida:\n- " + "\n- ".join(erros))
+
+
+def _validar_v14(cfg: dict, erros: list) -> None:
+    lim = cfg.get("limites", {})
+    n = lim.get("mitigacoes", 3)
+    if not isinstance(n, int) or not 1 <= n <= 10:
+        erros.append("limites.mitigacoes deve ser um inteiro de 1 a 10 (decisão do Carlos: 3)")
+    pv = cfg.get("previa") or {}
+    if pv.get("modo") not in MODOS_PREVIA:
+        erros.append(f"previa.modo deve ser um de {MODOS_PREVIA}")
+    if pv.get("modo") == "producao_restrita":
+        erros.append("previa.modo producao_restrita foi eliminado na 1.4: a prévia roda só em homologação ou em Docker local "
+                     "(código que o PO ainda não aceitou não roda na infraestrutura de produção)")
+    # A prévia é pré-requisito de adoção: sem comando de prévia, o aceite do PO não tem onde acontecer.
+    if pv.get("modo") in MODOS_PREVIA and not (cfg.get("comandos", {}).get("PREVIA") or {}).get("cmd"):
+        erros.append("previa.modo " + str(pv.get("modo")) + " exige comandos.PREVIA.cmd (a prévia é pré-requisito de adoção: "
+                     "sem ela o PO não consegue fazer o aceite)")
+    lt = (cfg.get("orcamento") or {}).get("limite_por_tarefa_usd")
+    if lt is not None and (isinstance(lt, bool) or not isinstance(lt, (int, float)) or lt <= 0):
+        erros.append("orcamento.limite_por_tarefa_usd deve ser um número maior que zero (ou ausente)")
+    ch = lim.get("chamadas_por_tarefa")
+    if ch is not None and (isinstance(ch, bool) or not isinstance(ch, int) or ch < 1):
+        erros.append("limites.chamadas_por_tarefa deve ser um inteiro maior que zero (ou ausente)")
+    dm = lim.get("diff_max_caracteres")
+    if dm is not None and (isinstance(dm, bool) or not isinstance(dm, int) or dm < 5000):
+        erros.append("limites.diff_max_caracteres deve ser um inteiro de pelo menos 5000 (ou ausente)")
+    for chave in ("arquivos_max_por_tarefa",):
+        v = lim.get(chave)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int) or v < 1):
+            erros.append(f"limites.{chave} deve ser um inteiro maior que zero (ou ausente)")
+    rp = lim.get("revisao_partes_max")
+    if rp is not None and (isinstance(rp, bool) or not isinstance(rp, int) or rp < 1 or rp > 10):
+        erros.append("limites.revisao_partes_max deve ser um inteiro de 1 a 10 (ou ausente)")
+    if lim.get("revisao_em_partes") is not None and not isinstance(lim.get("revisao_em_partes"), bool):
+        erros.append("limites.revisao_em_partes deve ser true ou false (ou ausente)")
+    for p, r in cfg.get("papeis", {}).items():
+        if r.get("plano") is not None and r["plano"] not in PLANOS_IA:
+            erros.append(f"papeis.{p}.plano deve ser um de {PLANOS_IA}")
+    pessoais = [p for p, r in cfg.get("papeis", {}).items() if r.get("plano") == "plano_pessoal"]
+    if pessoais:
+        x = cfg.get("plano_pessoal_risco_assumido") or {}
+        if not (x.get("motivo") and x.get("decidido_por") in cfg.get("humanos", []) and x.get("em")):
+            erros.append(f"{', '.join(pessoais)} usa plano_pessoal: registre plano_pessoal_risco_assumido (motivo, decidido_por, em) "
+                         "ou troque para api_por_uso (os termos de planos pessoais podem proibir automação)")
+    po = (cfg.get("aceite") or {}).get("po", cfg.get("humanos", []))
+    if not po or not set(po) <= set(cfg.get("humanos", [])):
+        erros.append("aceite.po: lista de pessoas que também estão em 'humanos'")
+    c = (cfg.get("riscos") or {}).get("agregar_c_acima_de", 5)
+    if not isinstance(c, int) or c < 1:
+        erros.append("riscos.agregar_c_acima_de deve ser um inteiro maior que zero")
+    dia = (cfg.get("orcamento") or {}).get("ciclo_dia", 1)
+    if not isinstance(dia, int) or not 1 <= dia <= 28:
+        erros.append("orcamento.ciclo_dia deve ser um dia de 1 a 28")
+    for rx in (cfg.get("riscos") or {}).get("dados_reais_permitir") or []:
+        try:
+            re.compile(rx)
+        except re.error as e:
+            erros.append(f"riscos.dados_reais_permitir inválido: {e}")
+    for nome in ("SAST", "DEPENDENCIAS"):
+        c = (cfg.get("comandos") or {}).get(nome) or {}
+        if c.get("modo") == "medicao" and c.get("formato") not in ("semgrep-json", "npm-audit-json"):
+            erros.append(f"comandos.{nome}.formato deve ser semgrep-json ou npm-audit-json (modo medicao)")
 
 
 def _pendencias(obj, caminho="config") -> list[str]:
@@ -300,6 +402,19 @@ def limite_mensal(cfg: dict, papel: str) -> float | None:
 def avisos_config(cfg: dict) -> list[str]:
     papeis = cfg["papeis"]
     out = []
+    if fluxo(cfg) == "1.4":
+        if not (cfg.get("aceite") or {}).get("delegacao"):
+            out.append("AVISO: aceite.delegacao vazio: os comandos de aceite do PO serão recusados até a delegação ser registrada")
+        for x in cfg.get("diversidade_excecoes") or []:
+            out.append(f"EXCEÇÃO DE DIVERSIDADE: {x.get('papeis')} no mesmo fornecedor ({x.get('motivo')}); vira risco B")
+        sem_plano = [p for p, r in papeis.items() if r.get("plano") is None and p in papeis_do_fluxo(cfg)]
+        if sem_plano:
+            out.append(f"AVISO: declare o plano de IA (api_por_uso ou plano_pessoal) em: {', '.join(sem_plano)}")
+        for p, r in papeis.items():
+            if r.get("plano") == "plano_pessoal":
+                out.append(f"PLANO PESSOAL EM AUTOMAÇÃO: {p}; risco assumido por quem adotou o processo; vira risco B em toda tarefa")
+        if (cfg.get("orcamento") or {}).get("limite_por_tarefa_usd") is None or (cfg.get("limites") or {}).get("chamadas_por_tarefa") is None:
+            out.append("AVISO: sem orcamento.limite_por_tarefa_usd ou limites.chamadas_por_tarefa: uma tarefa em laço pode consumir o limite do ciclo")
     if not cfg.get("ci_do_repositorio"):
         out.append("AVISO: sem ci_do_repositorio, nada independente confere o GREEN (que roda código do agente)")
     for regra in cfg.get("diversidade", []):
@@ -489,9 +604,21 @@ def ler_spec(md: str, ids: dict | None = None, fonte: str | None = None, nivel_m
     return s
 
 
-def checar_design(md: str, spec: Spec, ids: dict | None = None) -> None:
+def checar_design(md: str, spec: Spec, ids: dict | None = None, max_arquivos: int | None = None) -> str | None:
+    """Valida o DESIGN. Devolve um AVISO (não recusa) se o design prevê mais arquivos que o teto; None caso contrário."""
+    aviso = None
     erros = []
     sec = _secoes(md)
+    if max_arquivos:
+        # DL-61: o design declara os arquivos que a tarefa vai tocar. Acima do teto é só AVISO ao L1 (recusar o design
+        # não ajuda: o ARCHITECT não pode fatiar a SPEC). Não é garantia: o tamanho real só se conhece depois do BUILDER.
+        prev = [l for l in sec.get("arquivos previstos", []) if re.match(r"^- \S", l)]
+        if not prev:
+            erros.append("seção '## Arquivos previstos' ausente ou vazia (um '- caminho' por arquivo que a tarefa cria ou altera)")
+        elif len(prev) > max_arquivos:
+            aviso = (f"o design prevê {len(prev)} arquivos e o teto de referência por tarefa é {max_arquivos} "
+                     "(limites.arquivos_max_por_tarefa): a tarefa pode gerar um diff grande; considere rejeitar a SPEC "
+                     "pedindo uma fatia menor (/s2r rejeitar spec <motivo>)")
     for nome in ("componentes", "dados", "decisões", "plano"):
         if not sec.get(nome):
             erros.append(f"seção '## {nome.capitalize()}' ausente ou vazia")
@@ -508,6 +635,7 @@ def checar_design(md: str, spec: Spec, ids: dict | None = None) -> None:
             erros.append("Nível ELEVADO exige '## Ameaças' com itens '- AME-001 ... Mitigação: ...'")
     if erros:
         raise ErroFL("DESIGN inválido:\n- " + "\n- ".join(erros))
+    return aviso
 
 
 def ler_revisao(md: str) -> str:
@@ -636,6 +764,7 @@ class Estado:
     commit_green: str | None = None
     feedback: str | None = None       # o que o próximo agente precisa saber da rodada anterior
     must_ia: list = field(default_factory=list)
+    aviso_design: str | None = None                        # DL-61: aviso do teto de arquivos previstos (não recusa)
     novos: list = field(default_factory=list)
     hash_testes_aprovado: str | None = None
     arquivos_builder: list = field(default_factory=list)   # tudo que o BUILDER alterou na tarefa
@@ -644,6 +773,32 @@ class Estado:
     parecer: bool = False                                  # o REVIEWER entregou parecer-l4.md
     passos_green: dict = field(default_factory=dict)       # passo -> passou, do último GREEN ok
     ultimo_erro: str | None = None                         # motivo da última recusa, para o aviso de limite
+    # --- 1.4 (aceite do PO, riscos, mitigação, teto de gasto)
+    fluxo: str = "1.1"
+    previa_modo: str = "docker_local"
+    previa_hash: str | None = None       # hash do código que está na prévia (o que o PO testa)
+    previa_url: str | None = None
+    previa_instrucao: str = ""
+    cas: list = field(default_factory=list)       # [{id, must, texto}] do roteiro de aceite
+    aceites: dict = field(default_factory=dict)   # CA -> {resultado, categoria, motivo}
+    riscos_itens: list = field(default_factory=list)
+    riscos_hash: str | None = None
+    riscos_versao: str | None = None     # hash do código da lista de riscos
+    riscos_a: int = 0
+    aceitos: dict = field(default_factory=dict)   # chave do risco -> evento de aceite
+    alvo_mitigacao: list = field(default_factory=list)
+    mitigacoes: int = 0
+    max_mitigacoes: int = 3
+    seguir_chaves: list = field(default_factory=list)
+    mutacao_abaixo: dict | None = None
+    medicoes: dict = field(default_factory=dict)
+    diff_nao_lido: list = field(default_factory=list)
+    passos_rodados: list = field(default_factory=list)
+    teto: dict | None = None             # tarefa parada por teto de gasto: {papel, motivo, escopo, aguardando}
+    limites_extra: dict = field(default_factory=dict)
+    limite_tarefa_usd: float | None = None   # novo teto por tarefa definido pelo PO (/s2r limite)
+    chamadas_max: int | None = None          # novo limite de chamadas por tarefa definido pelo PO
+    relatorio_ok: bool = False
 
     def proxima(self) -> dict:
         if self.fase in ("CANCELADA",):
@@ -651,8 +806,22 @@ class Estado:
         if self.fase == "FORA_DO_ESCOPO":
             return {"tipo": "HUMANO", "gate": "ESCOPO",
                     "pedido": "dados SENSIVEL: conduza esta tarefa no FabricAI completo (v4). /s2r cancelar"}
+        if self.teto:
+            if self.teto.get("aguardando"):
+                return {"tipo": "HUMANO", "gate": "TETO", "pedido": (
+                    f"tarefa parada por teto de gasto em {self.teto['papel']}; você escolheu aguardar o próximo ciclo de "
+                    "cobrança. Quando o crédito voltar, comente /s2r retomar (ou /s2r limite <valor> para definir outro limite)")}
+            return {"tipo": "HUMANO", "gate": "TETO", "pedido": (
+                f"o teto de gasto de IA foi atingido em {self.teto['papel']}: {self.teto['motivo']}. "
+                + ("Escolha: /s2r limite <número de chamadas> (define o novo total de chamadas de IA desta tarefa e continua) "
+                   "ou /s2r cancelar. " if self.teto.get("escopo") == "tarefa_chamadas" else
+                   "Escolha: /s2r limite <valor em US$> (define um novo limite e continua; no teto do ciclo, recarregue o crédito "
+                   "no fornecedor antes) ou /s2r aguardar (espera o próximo ciclo de cobrança). ")
+                + "O custo ainda não é medido por completo: o sinal vem do erro do fornecedor e do custo que a CLI informa")}
         if self.bloqueio:
             return {"tipo": "HUMANO", "gate": "BLOQUEIO", "pedido": f"{self.bloqueio}. Corrija e comente /s2r retomar"}
+        if self.fluxo == "1.4" and self.fase in FASES_V14:
+            return self._proxima_v14()
         tipo, alvo, extra = PROXIMA[self.fase]
         if tipo == "FIM":
             return {"tipo": "FIM", "gate": alvo, "motivo": "merge aprovado por você: o bot ativa o merge automático "
@@ -663,6 +832,8 @@ class Estado:
         if tipo == "MAQUINA":
             return {"tipo": tipo, "etapa": alvo, "descricao": extra}
         pedido = extra
+        if alvo == "L1" and self.aviso_design:
+            pedido += f". Aviso: {self.aviso_design}"
         if alvo == "L1" and self.must_ia:
             pedido += (f". Atenção: {', '.join(self.must_ia)} são MUST vindos da IA, não de você; "
                        "para aceitá-los comente /s2r aprovar inferidos")
@@ -679,6 +850,44 @@ class Estado:
         return {"tipo": tipo, "gate": alvo, "pedido": pedido}
 
 
+FASES_V14 = ("REVISADO", "ACEITE_PO", "ACEITE_OK", "RELATORIO", "RISCOS", "RISCO_A", "MITIGACAO_ESGOTADA")
+
+
+def _proxima_v14(self) -> dict:
+    f = self.fase
+    if f == "REVISADO":
+        if self.alvo_mitigacao:
+            return {"tipo": "LOCAL", "etapa": "VERIFICAR_MITIGACAO",
+                    "descricao": "a regra de código recalcula a lista de riscos e confere se o risco mitigado sumiu"}
+        if self.previa_modo == "docker_local":
+            return {"tipo": "LOCAL", "etapa": "PREVIA_LOCAL", "descricao": "registrar o roteiro de aceite da prévia local"}
+        return {"tipo": "PREVIA", "etapa": "PREVIA", "descricao": "publicar a prévia (Environment s2r-previa)"}
+    if f == "ACEITE_PO":
+        return {"tipo": "HUMANO", "gate": "ACEITE", "pedido": (
+            "teste cada critério na prévia e comente, por critério, /s2r aceite <CA> atende  ou  "
+            "/s2r aceite <CA> nao-atende defeito|requisito <o que viu ou esperava>")}
+    if f == "ACEITE_OK":
+        return {"tipo": "LOCAL", "etapa": "CALCULAR_RISCOS", "descricao": "o código lista e classifica os riscos"}
+    if f == "RELATORIO":
+        return {"tipo": "AGENTE", "papel": PAPEL_RELATOR, "alvo": "riscos", "tentativa": self.tentativas[PAPEL_RELATOR] + 1,
+                "feedback": self.feedback}
+    if f == "RISCOS":
+        return {"tipo": "HUMANO", "gate": "RISCOS", "pedido": (
+            "leia o relatório e aceite os riscos: /s2r aceitar riscos (todos os de nível C), "
+            "/s2r aceitar R-xx consultei: <área>; <nome e cargo>; <data>[; resumo] (cada risco B), "
+            "ou /s2r nao-aceitar R-xx <motivo> (a IA tenta mitigar)")}
+    if f == "RISCO_A":
+        return {"tipo": "HUMANO", "gate": "RISCO_A", "pedido": (
+            "há risco de nível A (bloqueante): ninguém pode aceitá-lo. Corrija a causa e comente "
+            "/s2r rejeitar codigo <o que corrigir> (volta ao BUILDER) ou /s2r cancelar")}
+    return {"tipo": "HUMANO", "gate": "MITIGACAO", "pedido": (
+        f"a IA tentou mitigar {self.mitigacoes} vez(es) e o risco continua. Decida: /s2r seguir (aceita o risco que sobrou, "
+        "com o texto atualizado) ou /s2r cancelar")}
+
+
+Estado._proxima_v14 = _proxima_v14
+
+
 def hash_l1(tarefa_dir: str) -> str:
     return sha256(b"".join(open(os.path.join(tarefa_dir, n), "rb").read() for n in ("spec.md", "design.md")))
 
@@ -686,6 +895,9 @@ def hash_l1(tarefa_dir: str) -> str:
 def estado(tarefa_dir: str, cfg: dict) -> Estado:
     """Recalcula a fase lendo o registro do início. Nada fica guardado fora do registro."""
     st = Estado()
+    st.fluxo = fluxo(cfg)
+    st.previa_modo = (cfg.get("previa") or {}).get("modo", "docker_local")
+    st.max_mitigacoes = int((cfg.get("limites") or {}).get("mitigacoes", 3))
     limite = int(cfg.get("limites", {}).get("tentativas_por_papel", 3))
     try:
         evs = Registro(tarefa_dir).verificar()
@@ -705,7 +917,9 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                 st.fase = "NOVA"
             elif t == "ENTREGA_RECUSADA":
                 st.ultimo_erro = d["motivo"]
-                if d.get("credencial"):
+                if d.get("teto") and st.fluxo == "1.4":
+                    st.teto = {"papel": d["papel"], "motivo": d["motivo"][:400], "escopo": "ciclo"}
+                elif d.get("credencial"):
                     # Falha de chave, acesso ou crédito não é culpa do papel: não gasta tentativa.
                     st.bloqueio = (f"{d['papel']} não rodou por problema de credencial ou crédito "
                                    f"(esta falha não gastou tentativa). {d['motivo']}")
@@ -729,16 +943,31 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                         st.feedback = "O REVIEWER bloqueou a SPEC. Corrija os achados de revisao-spec.md."
                 elif p == "ARCHITECT":
                     avancar("SPEC_REVISADA", "DESIGN")
+                    st.aviso_design = d.get("aviso")
                 elif p == "TEST_DESIGNER":
                     avancar("L1", "TESTES")
                     st.testes_modificados = d.get("testes_modificados", [])
                 elif p == "BUILDER":
                     avancar("L2", "CODIGO")
                     st.arquivos_builder = sorted(set(st.arquivos_builder) | set(d.get("arquivos_alterados", [])))
+                elif p == PAPEL_RELATOR:
+                    avancar("RELATORIO", "RISCOS")
+                    st.relatorio_ok = True
                 elif p == "REVIEWER" and d["alvo"] == "codigo":
                     avancar("L3", "REVISADO" if d["veredito"] == "APROVADO" else "L2")
                     st.parecer = bool(d.get("parecer"))
-                    if d["veredito"] == "APROVADO" and d.get("diff_cortado"):
+                    st.diff_nao_lido = list(d.get("arquivos_nao_lidos", [])) if d.get("diff_cortado") else []
+                    if d["veredito"] == "APROVADO" and d.get("diff_cortado") and st.fluxo == "1.4":
+                        # 1.4 (DL-60): diff acima do limite = risco A (o código não foi lido por inteiro). Para antes de
+                        # gastar o aceite do PO; a saída é fatiar a tarefa ou reduzir a mudança.
+                        lista = ", ".join(d.get("arquivos_nao_lidos", [])[:15]) or "?"
+                        em_partes = (f" Mesmo com a revisão em partes (até {max_partes(cfg)} partes de {d.get('diff_limite', MAX_DIFF)} "
+                                     "caracteres) estes arquivos não couberam em nenhuma." if revisao_em_partes(cfg) else "")
+                        st.bloqueio = (f"risco de nível A: o REVIEWER não leu tudo (o diff tem {d.get('diff_caracteres')} caracteres e o "
+                                       f"limite é {d.get('diff_limite', MAX_DIFF)}); ficaram de fora: {lista}.{em_partes} Ninguém aceita esse risco. "
+                                       "Fatie a tarefa em partes menores: /s2r cancelar e abra novas tarefas, ou "
+                                       "/s2r rejeitar codigo <reduza a mudança> para o construtor diminuir o tamanho")
+                    elif d["veredito"] == "APROVADO" and d.get("diff_cortado") and st.fluxo == "1.1":
                         # O REVIEWER aprovou sem ler tudo: a máquina não libera o merge sozinha.
                         lista = ", ".join(d.get("arquivos_nao_lidos", [])[:15]) or "?"
                         st.bloqueio = (f"o REVIEWER não leu tudo: o diff (sem registro, evidências e lockfiles) tem "
@@ -761,19 +990,98 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                     if d["ok"]:
                         st.commit_green = d["commit"]
                         st.passos_green = d.get("passos_resumo", {})
+                        st.medicoes = d.get("medicoes", {})
+                        st.passos_rodados = d.get("passos_rodados", [])
+                        st.mutacao_abaixo = d.get("mutacao_abaixo")
                     else:
                         st.tentativas["BUILDER"] += 1
                         st.feedback = "GREEN falhou:\n" + d["resumo"]
+            elif t == "PREVIA_PUBLICADA":
+                avancar("REVISADO", "ACEITE_PO")
+                st.previa_hash, st.previa_url = d["hash_codigo"], d.get("url")
+                st.previa_instrucao = d.get("instrucao", "")
+                st.cas, st.aceites = list(d.get("cas", [])), {}
+            elif t == "PREVIA_FALHOU":
+                st.bloqueio = f"a prévia não subiu: {d.get('resumo', '')[:500]}"
+            elif t == "RISCOS_LISTADOS":
+                avancar("ACEITE_OK", "RISCO_A" if d.get("a") else "RELATORIO") if not d.get("mitigacao") else None
+                st.riscos_itens, st.riscos_hash = list(d["itens"]), d["hash_lista"]
+                st.riscos_versao, st.riscos_a = d["hash_codigo"], int(d.get("a", 0))
+                st.aceitos, st.relatorio_ok = {}, False
+            elif t == "MITIGACAO_VERIFICADA":
+                avancar("REVISADO", "REVISADO")
+                st.mitigacoes += 1
+                if d["ok"]:
+                    st.alvo_mitigacao = []
+                elif st.mitigacoes >= st.max_mitigacoes:
+                    st.fase, st.seguir_chaves = "MITIGACAO_ESGOTADA", list(d.get("restantes", []))
+                else:
+                    st.fase = "L2"
+                    st.feedback = ("A regra de código recalculou os riscos e o risco que você devia mitigar continua: "
+                                   + "; ".join(d.get("restantes", [])) + ". Mitigue de verdade: a máquina confere de novo.")
+            elif t == "CUSTO":
+                pass  # só alimenta a soma do ciclo (gasto_do_ciclo)
+            elif t == "TETO_ATINGIDO":
+                if st.fluxo == "1.4":
+                    st.teto = {"papel": d["papel"], "motivo": d["motivo"][:400], "escopo": d.get("escopo", "ciclo")}
             elif t == "DECISAO":
                 acao = d["acao"]
                 if acao == "APROVAR" and d.get("gate") == "L4":
                     avancar("REVISADO", "MERGE_APROVADO")
+                elif acao == "ACEITE_CA":
+                    if st.fase != "ACEITE_PO":
+                        raise ErroFL(f"aceite de critério fora de ordem (fase {st.fase})")
+                    st.aceites[d["ca"]] = {"resultado": d["resultado"], "categoria": d.get("categoria"), "motivo": d.get("motivo")}
+                    if d["resultado"] == "nao-atende" and d.get("categoria") == "defeito" and d.get("must", True):
+                        st.fase, st.aceites = "L2", {}
+                        st.tentativas["BUILDER"] += 1
+                        st.feedback = f"O PO não aceitou {d['ca']} (defeito): {d.get('motivo')}"
+                    elif d["resultado"] == "nao-atende" and d.get("categoria") == "requisito":
+                        st.fase, st.aceites = "NOVA", {}
+                        st.hash_aprovado_l1, st.testes_hash, st.testes_red_total = None, None, None
+                        st.feedback = f"O PO disse que a SPEC não era o que ele queria ({d['ca']}): {d.get('motivo')}"
+                    elif all(c["id"] in st.aceites for c in st.cas) and all(
+                            st.aceites[c["id"]]["resultado"] == "atende" for c in st.cas if c.get("must")):
+                        st.fase = "ACEITE_OK"
+                elif acao == "ACEITAR_RISCOS" or acao == "ACEITAR_RISCO":
+                    if st.fase != "RISCOS":
+                        raise ErroFL(f"aceite de risco fora de ordem (fase {st.fase})")
+                    for ch in d["chaves"]:
+                        st.aceitos[ch] = d
+                    pend = [i for i in st.riscos_itens if i["nivel"] != "A" and i["chave"] not in st.aceitos]
+                    if not pend and not st.riscos_a:
+                        st.fase = "MERGE_APROVADO"
+                elif acao == "NAO_ACEITAR":
+                    avancar("RISCOS", "L2")
+                    st.alvo_mitigacao = list(d["chaves"])
+                    st.aceitos, st.aceites = {}, {}
+                    st.feedback = ("O PO não aceitou estes riscos; mitigue-os (a máquina vai recalcular a lista e conferir): "
+                                   + "; ".join(d["textos"]) + f". Motivo do PO: {d['motivo']}")
+                elif acao == "SEGUIR":
+                    avancar("MITIGACAO_ESGOTADA", "REVISADO")
+                    st.alvo_mitigacao = []
+                elif acao == "LIMITE":
+                    esc = d.get("escopo", "ciclo")
+                    if esc == "tarefa_usd":
+                        st.limite_tarefa_usd = d["valor"]
+                    elif esc == "tarefa_chamadas":
+                        st.chamadas_max = int(d["valor"])
+                    else:
+                        st.limites_extra[d["papel"]] = d["valor"]
+                    st.teto, st.bloqueio = None, None
+                elif acao == "AGUARDAR":
+                    if st.teto:
+                        st.teto["aguardando"] = True
                 elif acao == "APROVAR" and d.get("gate") == "TESTES":
                     avancar("RED_OK", "L2")
                     st.hash_testes_aprovado = d["hash"]
                 elif acao == "APROVAR":
                     avancar("DESIGN", "L1")
                     st.hash_aprovado_l1 = d["hash"]
+                elif acao == "REJEITAR" and d["alvo"] == "codigo" and st.fase == "RISCO_A":
+                    st.fase, st.aceites, st.aceitos = "L2", {}, {}
+                    st.tentativas["BUILDER"] += 1
+                    st.feedback = f"A pessoa devolveu o código por risco de nível A: {d['motivo']}"
                 elif acao == "REJEITAR" and d["alvo"] == "codigo":
                     avancar("REVISADO", "L2")
                     st.tentativas["BUILDER"] += 1
@@ -787,7 +1095,7 @@ def estado(tarefa_dir: str, cfg: dict) -> Estado:
                     avancar("DESIGN", "NOVA" if d["alvo"] == "spec" else "SPEC_REVISADA")
                     st.feedback = f"A pessoa rejeitou {d['alvo'].upper()}: {d['motivo']}"
                 elif acao == "RETOMAR":
-                    st.bloqueio, st.tentativas = None, Counter()
+                    st.bloqueio, st.tentativas, st.teto = None, Counter(), None
                 elif acao == "CANCELAR":
                     st.fase = "CANCELADA"
             elif t == "COMANDO_RECUSADO":
@@ -823,7 +1131,9 @@ def escopo_do_papel(papel: str, alvo: str, tarefa_rel: str, cfg: dict) -> tuple[
     if papel == "ARCHITECT":
         return [t + "design.md"], []
     if papel == "REVIEWER":
-        return ([t + "revisao-spec.md"] if alvo == "spec" else [t + "revisao-codigo.md", t + "parecer-l4.md"]), []
+        return ([t + "revisao-spec.md"] if alvo == "spec" else [t + "revisao-codigo.md", t + "parecer-l4.md", t + "partes/*"]), []
+    if papel == PAPEL_RELATOR:
+        return [t + "relatorio-riscos.md"], []
     if papel == "TEST_DESIGNER":
         return testes + [t + "testes.txt"], list(ZONA_PROIBIDA) + [".spec2run/**/registro.jsonl"]
     if papel == "BUILDER":
@@ -980,8 +1290,9 @@ def checar_entrega(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict)
             return {"veredito": veredito, "parecer": True}
         return {"veredito": veredito}
     if papel == "ARCHITECT":
-        checar_design(ler(caminho("design.md")), spec_da_tarefa(repo, tarefa_dir, cfg), ids_de(cfg))
-        return {}
+        aviso = checar_design(ler(caminho("design.md")), spec_da_tarefa(repo, tarefa_dir, cfg), ids_de(cfg),
+                              (cfg.get("limites") or {}).get("arquivos_max_por_tarefa") if fluxo(cfg) == "1.4" else None)
+        return {"aviso": aviso} if aviso else {}
     if papel == "TEST_DESIGNER":
         s = spec_da_tarefa(repo, tarefa_dir, cfg)
         arqs = arquivos_de_teste(repo, tarefa_dir, cfg)
@@ -992,11 +1303,19 @@ def checar_entrega(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict)
         return {"arquivos": arqs, "cas_cobertos": s.cas_must()}
     if papel == "BUILDER":
         return {}
+    if papel == PAPEL_RELATOR:
+        from . import riscos
+        st = estado(tarefa_dir, cfg)
+        if not st.riscos_itens:
+            raise ErroFL("não há lista de riscos para o relatório cobrir")
+        caminho_r = caminho("relatorio-riscos.md")
+        riscos.ler_relatorio(ler(caminho_r) if os.path.exists(caminho_r) else "", st.riscos_itens)
+        return {"riscos_cobertos": [i["id"] for i in st.riscos_itens], "hash_lista": st.riscos_hash}
     raise ErroFL(f"papel desconhecido: {papel}")
 
 
 # ----------------------------------------------------------------------------- evidências
-def _rodar(nome: str, cmd: str, repo: str, timeout: int, guardar: int = MAX_SAIDA) -> dict:
+def _rodar(nome: str, cmd: str, repo: str, timeout: int, guardar: int = MAX_SAIDA, formato: str | None = None) -> dict:
     ini = time.monotonic()
     # Grupo de processos próprio, encerrado ao fim: um processo deixado em segundo plano pelo
     # código do agente não continua rodando (nem mexendo na evidência) depois do passo.
@@ -1011,8 +1330,15 @@ def _rodar(nome: str, cmd: str, repo: str, timeout: int, guardar: int = MAX_SAID
         codigo, saida = 124, f"tempo esgotado ({timeout}s)\n{saida or ''}"
     _matar_grupo(p)
     saida = saida or ""
-    return {"nome": nome, "cmd": cmd, "codigo_saida": codigo, "duracao_s": round(time.monotonic() - ini, 1),
-            "saida_sha256": sha256(saida.encode()), "saida_final": saida[-guardar:]}
+    r = {"nome": nome, "cmd": cmd, "codigo_saida": codigo, "duracao_s": round(time.monotonic() - ini, 1),
+         "saida_sha256": sha256(saida.encode()), "saida_final": saida[-guardar:]}
+    if formato:
+        # Medição (1.4): a severidade vem da saída em JSON, lida aqui sobre o texto inteiro (a saída
+        # guardada é só o final). None = a saída não pôde ser lida.
+        from . import riscos
+        r["formato"] = formato
+        r["contagem"] = riscos.parse_medicao(formato, saida)
+    return r
 
 
 def _matar_grupo(p) -> None:
@@ -1071,6 +1397,15 @@ def avaliar(etapa: str, passos: list[dict], cfg: dict, nivel: str, red_total: in
         p = por_nome.get(nome)
         if not p:
             problemas.append(f"{nome} não rodou"); continue
+        if fluxo(cfg) == "1.4" and cfg["comandos"].get(nome, {}).get("modo") == "medicao":
+            # O código de saída da ferramenta não decide (ela falha com qualquer achado): decide a
+            # severidade lida. Crítica é nível A e volta ao BUILDER; o resto vira risco listado.
+            cont = p.get("contagem")
+            if cont is None:
+                continue  # sem severidade legível: entra na lista como risco B, não trava aqui
+            if cont.get("critica"):
+                problemas.append(f"{nome}: {cont['critica']} achado(s) de severidade crítica (nível A, bloqueante)")
+            continue
         if p["codigo_saida"] != 0:
             problemas.append(f"{nome} falhou (código {p['codigo_saida']})")
     p = por_nome.get("TESTES")
@@ -1112,17 +1447,25 @@ def rodar_evidencia(repo: str, tarefa_dir: str, etapa: str, cfg: dict, commit: s
         passos.append(_rodar("TESTES", cmd.replace("{arquivos}", " ".join(shlex.quote(a) for a in arqs)), repo, timeout,
                              guardar=20000))
     elif etapa == "GREEN":
-        ordem = ["BUILD", "LINT", "TESTES", "COBERTURA", "SAST", "SEGREDOS", "DEPENDENCIAS", "LICENCAS"]
-        ordem += [n for n in cfg.get("green_extra", []) if n not in ordem]
-        if st.nivel == "ELEVADO":
-            ordem.append("MUTACAO")
+        ordem = ordem_green(cfg, st.nivel)
         for nome in ordem:
             if nome in cmds and cmds[nome].get("cmd"):
+                fmt = cmds[nome].get("formato") if (fluxo(cfg) == "1.4" and cmds[nome].get("modo") == "medicao") else None
                 passos.append(_rodar(nome, comando_mutacao(cmds[nome], st, repo) if nome == "MUTACAO"
-                                     else cmds[nome]["cmd"], repo, timeout))
+                                     else cmds[nome]["cmd"], repo, timeout, formato=fmt))
     else:
         raise ErroFL(f"etapa desconhecida: {etapa}")
     return {"etapa": etapa, "commit": commit, "nivel": st.nivel, "passos": passos, "em": agora()}
+
+
+def ordem_green(cfg: dict, nivel: str) -> list[str]:
+    """Ordem dos passos do GREEN. A do template segue a do ci.yml do repositório; 'green_ordem' no config.json a substitui.
+    `verificar-ordem-ci` (na instalação) confere que ela é a mesma do CI."""
+    ordem = list(cfg.get("green_ordem") or ["BUILD", "LINT", "TESTES", "COBERTURA", "SAST", "SEGREDOS", "DEPENDENCIAS", "LICENCAS"])
+    ordem += [n for n in cfg.get("green_extra", []) if n not in ordem]
+    if nivel == "ELEVADO" and "MUTACAO" not in ordem:
+        ordem.append("MUTACAO")
+    return ordem
 
 
 def comando_mutacao(c: dict, st: Estado, repo: str) -> str:
@@ -1163,18 +1506,109 @@ def registrar_evidencia(repo: str, tarefa_dir: str, ev: dict, cfg: dict, commit_
     elif th != st.testes_hash:
         ok = False
         problemas.append("arquivos de teste ou configuração de teste mudaram depois do RED")
+    so_mutacao = False
+    if ev["etapa"] == "GREEN" and not ok and problemas and all(x.startswith("MUTACAO") for x in problemas) \
+            and not any(p["codigo_saida"] != 0 and p["nome"] != "MUTACAO" and not p.get("formato") for p in ev["passos"]):
+        so_mutacao = True
+        if fluxo(cfg) == "1.4":
+            # Decisão 3 (DL-59): mutação abaixo da meta reprova até 3 tentativas; depois vira risco B.
+            n = int(cfg.get("limites", {}).get("mutacao_tentativas", 3))
+            antes = sum(1 for e in Registro(tarefa_dir).eventos()
+                        if e["evento"] == "EVIDENCIA" and e["dados"].get("etapa") == "GREEN" and e["dados"].get("so_mutacao"))
+            if antes + 1 >= n:
+                ok = True
+                dados["mutacao_abaixo"] = {"tentativas": antes + 1, "problemas": problemas[:3]}
+                problemas = []
     nome = f"{ev['etapa'].lower()}-{len(Registro(tarefa_dir).eventos()) + 1:03d}.json"
     os.makedirs(os.path.join(tarefa_dir, "evidencias"), exist_ok=True)
     with open(os.path.join(tarefa_dir, "evidencias", nome), "w", encoding="utf-8") as f:
         json.dump(ev, f, ensure_ascii=False, indent=2)
     dados.update({"ok": ok, "arquivo": f"evidencias/{nome}", "resumo": resumo(ev["passos"], problemas),
                   "passos_resumo": {p["nome"]: p["codigo_saida"] == 0 for p in ev["passos"]}})
+    if so_mutacao:
+        dados["so_mutacao"] = True
+    medicoes = {p["nome"]: {"legivel": p.get("contagem") is not None, "contagem": p.get("contagem")}
+                for p in ev["passos"] if p.get("formato")}
+    if medicoes:
+        dados["medicoes"] = medicoes
+    dados["passos_rodados"] = [p["nome"] for p in ev["passos"]]
     Registro(tarefa_dir).anexar("EVIDENCIA", dados)
     return dados
 
 
+# ----------------------------------------------------------------------------- 1.4: código, custo, teto
+def hash_codigo(repo: str) -> str:
+    """Hash do código da tarefa: todos os arquivos versionados, menos a pasta .spec2run/tarefas.
+
+    Por que não a árvore do git: ela inclui o registro, que muda a cada evento. Aqui só muda se
+    o código (ou qualquer outro arquivo do repositório) mudar. É a 'versão' do aceite do PO e do
+    aceite de risco: código diferente, aceite sem efeito."""
+    p = subprocess.run(["git", "ls-files", "-s", "-z"], cwd=repo, capture_output=True, text=True, errors="replace")
+    if p.returncode != 0:
+        raise ErroFL("não consegui ler os arquivos do repositório (git ls-files)")
+    linhas = sorted(x for x in p.stdout.split("\0") if x and "\t.spec2run/tarefas/" not in x
+                    and not x.split("\t", 1)[-1].startswith(".spec2run/tarefas/"))
+    return sha256("\n".join(linhas).encode())
+
+
+_RX_TETO = re.compile(r"credit balance|insufficient[ _](?:balance|quota|credit|funds)|quota exceeded|exceeded.{0,30}quota|"
+                      r"spend(?:ing)? limit|billing|payment required|HTTP 402|out of credit|saldo insuficiente", re.I)
+
+
+def eh_teto_gasto(texto: str | None) -> bool:
+    """A saída da CLI diz que o crédito ou a cota do fornecedor acabou (o sinal real de teto)."""
+    return bool(texto and _RX_TETO.search(texto))
+
+
+def custo_da_saida(texto: str | None) -> float | None:
+    """Custo em US$ que a CLI informa (ex.: total_cost_usd do Claude Code). None = a CLI não informa."""
+    if not texto:
+        return None
+    try:
+        j = json.loads(texto)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(j, list):
+        j = next((x for x in reversed(j) if isinstance(x, dict) and "total_cost_usd" in x), None)
+    if isinstance(j, dict) and isinstance(j.get("total_cost_usd"), (int, float)) and j["total_cost_usd"] >= 0:
+        return float(j["total_cost_usd"])
+    return None
+
+
+def inicio_do_ciclo(cfg: dict, hoje: datetime | None = None) -> str:
+    """Data (ISO) em que começou o ciclo de cobrança atual: o último 'ciclo_dia' (padrão 1)."""
+    hoje = hoje or datetime.now(timezone.utc)
+    dia = int((cfg.get("orcamento") or {}).get("ciclo_dia", 1))
+    ano, mes = (hoje.year, hoje.month) if hoje.day >= dia else ((hoje.year - 1, 12) if hoje.month == 1 else (hoje.year, hoje.month - 1))
+    return f"{ano:04d}-{mes:02d}-{dia:02d}T00:00:00+00:00"
+
+
+def gasto_do_ciclo(repo: str, cfg: dict, papel: str, hoje: datetime | None = None) -> tuple[float, int]:
+    """(US$ gastos no ciclo pelo papel, execuções sem custo informado). Soma os eventos CUSTO de
+    todas as tarefas; não confia em nada fora do registro."""
+    desde, total, sem = inicio_do_ciclo(cfg, hoje), 0.0, 0
+    raiz = os.path.join(repo, ".spec2run", "tarefas")
+    if not os.path.isdir(raiz):
+        return 0.0, 0
+    for n in sorted(os.listdir(raiz)):
+        for e in Registro(os.path.join(raiz, n)).eventos():
+            if e["evento"] == "CUSTO" and e["dados"].get("papel") == papel and _iso(e["em"]) >= _iso(desde):
+                if e["dados"].get("usd") is None:
+                    sem += 1
+                else:
+                    total += float(e["dados"]["usd"])
+    return round(total, 4), sem
+
+
+def limite_vigente(cfg: dict, st: "Estado", papel: str) -> float | None:
+    """Limite do papel: o que o PO definiu com /s2r limite, senão o do config.json."""
+    return st.limites_extra.get(papel, limite_mensal(cfg, papel))
+
+
 # ----------------------------------------------------------------------------- decisões humanas
-RE_CMD = re.compile(r"^/s2r\s+(aprovar|rejeitar|retomar|cancelar)\b(.*)$", re.M)
+RE_CMD = re.compile(r"^/s2r\s+(aprovar|rejeitar|retomar|cancelar|aceite|aceitar|nao-aceitar|seguir|limite|aguardar)\b(.*)$", re.M)
+RE_ACEITE = re.compile(r"^/s2r\s+aceite\s+(\S+)\s+(atende|nao-atende)\b(.*)$", re.M)
+CMDS_V14 = ("aceite", "aceitar", "nao-aceitar", "seguir", "limite", "aguardar")
 ASSOCIACOES_OK = ("OWNER", "MEMBER", "COLLABORATOR")
 
 
@@ -1191,6 +1625,8 @@ def decidir(tarefa_dir: str, cfg: dict, autor: str, associacao: str, texto: str,
     dados = {"autor": autor, "comentario": url}
     if comentario_id is not None:
         dados["comentario_id"] = int(comentario_id)
+    if cmd in CMDS_V14 or (st.fluxo == "1.4" and cmd == "aprovar" and resto.startswith("codigo")):
+        return _decidir_v14(tarefa_dir, cfg, st, autor, texto, cmd, resto, dados)
     if cmd == "aprovar" and st.fase == "RED_OK" and not st.bloqueio:
         if not resto.startswith("testes"):
             raise ErroFL("agora a aprovação é dos testes: comente /s2r aprovar testes")
@@ -1203,11 +1639,11 @@ def decidir(tarefa_dir: str, cfg: dict, autor: str, associacao: str, texto: str,
         if not motivo:
             raise ErroFL("diga o motivo: /s2r rejeitar testes <motivo>")
         dados.update({"acao": "REJEITAR", "gate": "TESTES", "alvo": "testes", "motivo": motivo[:2000]})
-    elif cmd == "aprovar" and st.fase == "REVISADO" and not st.bloqueio:
+    elif cmd == "aprovar" and st.fase == "REVISADO" and st.fluxo == "1.1" and not st.bloqueio:
         if not resto.startswith("codigo"):
             raise ErroFL("agora a aprovação é do código: comente /s2r aprovar codigo")
         dados.update({"acao": "APROVAR", "gate": "L4"})
-    elif cmd == "rejeitar" and st.fase == "REVISADO":
+    elif cmd == "rejeitar" and (st.fase == "RISCO_A" or (st.fase == "REVISADO" and st.fluxo == "1.1")):
         motivo = resto[len("codigo"):].strip() if resto.startswith("codigo") else resto
         if not motivo:
             raise ErroFL("diga o motivo: /s2r rejeitar codigo <motivo>")
@@ -1236,6 +1672,135 @@ def decidir(tarefa_dir: str, cfg: dict, autor: str, associacao: str, texto: str,
     else:
         dados.update({"acao": "CANCELAR"})
     return Registro(tarefa_dir).anexar("DECISAO", dados)
+
+
+def _repo_da_tarefa(tarefa_dir: str) -> str:
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(tarefa_dir))))
+
+
+def _exigir_po(cfg: dict, autor: str) -> None:
+    if autor not in (cfg.get("aceite") or {}).get("po", cfg["humanos"]):
+        raise ErroFL(f"@{autor} não é o PO (aceite.po do config.json): só o PO aceita critério e risco")
+    if not str((cfg.get("aceite") or {}).get("delegacao") or "").strip():
+        raise ErroFL("sem delegação por escrito da autoridade do PO (aceite.delegacao vazio no config.json): "
+                     "os comandos de aceite ficam recusados até ela ser registrada (Guia, seção 12.1)")
+
+
+def _decidir_v14(tarefa_dir: str, cfg: dict, st: "Estado", autor: str, texto: str, cmd: str, resto: str, dados: dict):
+    """Comandos novos da 1.4: aceite do PO, aceitação de risco, mitigação, teto de gasto."""
+    from . import riscos
+    if st.fluxo != "1.4":
+        raise ErroFL(f"/s2r {cmd} só existe no fluxo 1.4 (config.json: fluxo)")
+    repo = _repo_da_tarefa(tarefa_dir)
+    reg = Registro(tarefa_dir)
+    if cmd in ("aprovar", "rejeitar"):
+        raise ErroFL("na versão 1.4 não há aprovação de código: depois da revisão vêm a prévia, o aceite do PO e a "
+                     "aceitação de riscos (veja o último aviso da issue)")
+    if cmd == "limite":
+        if not st.teto:
+            raise ErroFL("a tarefa não está parada por teto de gasto: /s2r limite não se aplica")
+        esc = st.teto.get("escopo", "ciclo")
+        m = re.fullmatch(r"\$?\s*(\d+(?:[.,]\d{1,2})?)", resto)
+        if not m or float(m.group(1).replace(",", ".")) <= 0:
+            raise ErroFL("diga o novo limite em número de chamadas, por exemplo: /s2r limite 40" if esc == "tarefa_chamadas"
+                         else "diga o novo limite em US$, por exemplo: /s2r limite 20")
+        valor = float(m.group(1).replace(",", "."))
+        if esc == "tarefa_chamadas" and valor != int(valor):
+            raise ErroFL("o limite de chamadas é um número inteiro, por exemplo: /s2r limite 40")
+        dados.update({"acao": "LIMITE", "papel": st.teto["papel"], "valor": valor, "escopo": esc})
+        return reg.anexar("DECISAO", dados)
+    if cmd == "aguardar":
+        if not st.teto:
+            raise ErroFL("a tarefa não está parada por teto de gasto: /s2r aguardar não se aplica")
+        dados.update({"acao": "AGUARDAR"})
+        return reg.anexar("DECISAO", dados)
+    _exigir_po(cfg, autor)
+    if st.bloqueio:
+        raise ErroFL(f"tarefa bloqueada ({st.bloqueio}); corrija e comente /s2r retomar")
+    if cmd == "aceite":
+        if st.fase != "ACEITE_PO":
+            raise ErroFL(f"não há aceite de critério agora (fase {st.fase})")
+        if hash_codigo(repo) != st.previa_hash:
+            raise ErroFL("o código da branch não é o da prévia que você testou: o aceite não vale. Atualize a prévia "
+                         "(modo docker_local: python -P -m spec2run previa-local) e aceite de novo")
+        linhas = RE_ACEITE.findall(texto or "")
+        if not linhas:
+            raise ErroFL("formato: /s2r aceite <CA> atende  ou  /s2r aceite <CA> nao-atende defeito|requisito <o que viu>")
+        ultimo = None
+        for ca, res, resto_l in linhas:
+            info = next((c for c in st.cas if c["id"] == ca), None)
+            if not info:
+                raise ErroFL(f"{ca} não está no roteiro de aceite; critérios: {', '.join(c['id'] for c in st.cas)}")
+            d = dict(dados, acao="ACEITE_CA", ca=ca, resultado=res, must=bool(info.get("must")),
+                     hash_codigo=st.previa_hash, previa=st.previa_url, modo_previa=st.previa_modo)
+            if res == "nao-atende":
+                partes = resto_l.strip().split(None, 1)
+                if not partes or partes[0] not in ("defeito", "requisito"):
+                    raise ErroFL(f"{ca}: diga se é defeito ou requisito: /s2r aceite {ca} nao-atende defeito|requisito <motivo>")
+                if len(partes) < 2:
+                    raise ErroFL(f"{ca}: diga o que você viu ou esperava")
+                d.update({"categoria": partes[0], "motivo": partes[1][:2000]})
+            ultimo = reg.anexar("DECISAO", d)
+            st = estado(tarefa_dir, cfg)
+            if st.fase != "ACEITE_PO":
+                break
+        return ultimo
+    if cmd in ("aceitar", "nao-aceitar"):
+        if st.fase == "RISCO_A":
+            raise ErroFL("há risco de nível A: ninguém pode aceitá-lo; use /s2r rejeitar codigo <o que corrigir>")
+        if st.fase != "RISCOS":
+            raise ErroFL(f"não há risco para aceitar agora (fase {st.fase})")
+        if hash_codigo(repo) != st.riscos_versao:
+            raise ErroFL("o código mudou depois da lista de riscos: o aceite não vale para esta versão")
+        por_id = {i["id"]: i for i in st.riscos_itens}
+        comum = {"hash_lista": st.riscos_hash, "hash_codigo": st.riscos_versao, "versao": _commit_atual(repo),
+                 "mitigacoes_tentadas": st.mitigacoes}
+        if cmd == "nao-aceitar":
+            m = re.match(r"(R-\d+(?:\s*,?\s*R-\d+)*)\s+(.+)$", resto, re.S)
+            if not m:
+                raise ErroFL("formato: /s2r nao-aceitar R-03 <motivo>")
+            ids = re.findall(r"R-\d+", m.group(1))
+            falta = [i for i in ids if i not in por_id]
+            if falta:
+                raise ErroFL(f"não existe na lista: {', '.join(falta)}")
+            if any(por_id[i]["nivel"] == "A" for i in ids):
+                raise ErroFL("risco de nível A não se aceita nem se mitiga por aqui: use /s2r rejeitar codigo")
+            if st.mitigacoes >= st.max_mitigacoes:
+                raise ErroFL(f"a mitigação já foi tentada {st.mitigacoes} vez(es) (limite {st.max_mitigacoes}): aceite o risco ou /s2r cancelar")
+            dados.update(comum, acao="NAO_ACEITAR", chaves=[por_id[i]["chave"] for i in ids],
+                         textos=[riscos.texto_exato(por_id[i]) for i in ids], motivo=m.group(2).strip()[:2000])
+            return reg.anexar("DECISAO", dados)
+        if st.riscos_a:
+            raise ErroFL("há risco de nível A: ninguém pode aceitá-lo")
+        if resto.strip().lower().startswith("riscos"):
+            alvo = [i for i in st.riscos_itens if i["nivel"] == "C" and i["chave"] not in st.aceitos]
+            if any(i["nivel"] == "B" and i["chave"] not in st.aceitos for i in st.riscos_itens):
+                pass  # os B continuam pendentes e são avisados depois do registro
+            dados.update(comum, acao="ACEITAR_RISCOS", chaves=[i["chave"] for i in alvo], riscos=[
+                {"id": i["id"], "regra": i["regra"], "nivel": i["nivel"], "texto_exato": riscos.texto_exato(i)} for i in alvo],
+                nome=autor)
+            return reg.anexar("DECISAO", dados)
+        m = re.match(r"(R-\d+)\s*(.*)$", resto, re.S)
+        if not m or m.group(1) not in por_id:
+            raise ErroFL("formato: /s2r aceitar riscos  ou  /s2r aceitar R-03 consultei: <área>; <nome e cargo>; <data>[; resumo]")
+        i = por_id[m.group(1)]
+        decl = None
+        if i["nivel"] == "B":
+            decl = riscos.ler_declaracao(m.group(2), cfg)
+        dados.update(comum, acao="ACEITAR_RISCO", chaves=[i["chave"]], nome=autor, declaracao=decl, riscos=[
+            {"id": i["id"], "regra": i["regra"], "nivel": i["nivel"], "texto_exato": riscos.texto_exato(i)}])
+        return reg.anexar("DECISAO", dados)
+    if cmd == "seguir":
+        if st.fase != "MITIGACAO_ESGOTADA":
+            raise ErroFL("/s2r seguir só vale depois de esgotadas as mitigações")
+        dados.update({"acao": "SEGUIR", "restantes": st.seguir_chaves, "mitigacoes_tentadas": st.mitigacoes})
+        return reg.anexar("DECISAO", dados)
+    raise ErroFL(f"comando /s2r {cmd} não reconhecido")
+
+
+def _commit_atual(repo: str) -> str:
+    p = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True)
+    return p.stdout.strip() if p.returncode == 0 else ""
 
 
 def processar_comentarios(tarefa_dir: str, cfg: dict, comentarios: list[dict]) -> list[str]:
@@ -1290,10 +1855,31 @@ def verificar_pr(repo: str, tarefa_dir: str, cfg: dict, alterados_desde_green: l
     erros = []
     if st.bloqueio:
         erros.append(st.bloqueio)
-    if st.fase not in ("REVISADO", "MERGE_APROVADO"):
+    if st.fluxo == "1.4":
+        if st.fase != "MERGE_APROVADO":
+            erros.append(f"tarefa na fase {st.fase}; na 1.4 o merge só é liberado depois do aceite do PO e da aceitação dos riscos")
+        else:
+            h = hash_codigo(repo)
+            if h != st.previa_hash:
+                erros.append("o código mudou depois da prévia que o PO aceitou (o aceite vale só para a versão testada)")
+            if h != st.riscos_versao:
+                erros.append("o código mudou depois da lista de riscos aceita (o aceite vale só para aquela versão)")
+            if st.riscos_a:
+                erros.append("há risco de nível A: ele bloqueia o merge")
+            faltam = [i["id"] for i in st.riscos_itens if i["nivel"] != "A" and i["chave"] not in st.aceitos]
+            if faltam:
+                erros.append("riscos sem aceite do PO para esta versão: " + ", ".join(faltam))
+            faltam_b = [i["id"] for i in st.riscos_itens if i["nivel"] == "B" and not (st.aceitos.get(i["chave"]) or {}).get("declaracao")]
+            if faltam_b:
+                erros.append("risco de nível B sem declaração de consulta: " + ", ".join(faltam_b))
+            nao_atende = [c["id"] for c in st.cas if c.get("must") and (st.aceites.get(c["id"]) or {}).get("resultado") != "atende"]
+            if nao_atende:
+                erros.append("critério MUST sem aceite do PO: " + ", ".join(nao_atende))
+    elif st.fase not in ("REVISADO", "MERGE_APROVADO"):
         erros.append(f"tarefa na fase {st.fase}; o merge só é liberado em REVISADO")
     rel = os.path.relpath(tarefa_dir, repo).replace(os.sep, "/")
-    permitidos = [f"{rel}/revisao-codigo.md", f"{rel}/parecer-l4.md", f"{rel}/registro.jsonl", f"{rel}/evidencias/*"]
+    permitidos = [f"{rel}/revisao-codigo.md", f"{rel}/parecer-l4.md", f"{rel}/partes/*", f"{rel}/registro.jsonl", f"{rel}/evidencias/*",
+                  f"{rel}/relatorio-riscos.md"]
     for c in alterados_desde_green:
         if not casa(c, permitidos):
             erros.append(f"{c} mudou depois do GREEN")
@@ -1329,6 +1915,13 @@ def regras_da_spec(repo: str, tarefa_dir: str, cfg: dict) -> str:
     return "\n".join(linhas)
 
 
+def max_diff(cfg: dict) -> int:
+    """Limite de caracteres do diff que o REVIEWER lê: por fornecedor do REVIEWER, senão geral, senão MAX_DIFF."""
+    lim = cfg.get("limites") or {}
+    forn = (cfg.get("papeis", {}).get("REVIEWER") or {}).get("fornecedor")
+    return int((lim.get("diff_max_por_fornecedor") or {}).get(forn, lim.get("diff_max_caracteres", MAX_DIFF)))
+
+
 def preparar_diff(diff: str, testes_globs: list[str] | None = None, limite: int = MAX_DIFF) -> tuple[str, list[str], int]:
     """Cabe o diff no limite do REVIEWER sem cortar arquivo ao meio.
 
@@ -1353,7 +1946,204 @@ def preparar_diff(diff: str, testes_globs: list[str] | None = None, limite: int 
     return "".join(lidos), nao_lidos, len(diff)
 
 
-def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, diff: str | None = None) -> str:
+# ----------------------------------------------------------------------------- revisão em partes (DL-61)
+def revisao_em_partes(cfg: dict) -> bool:
+    """1.4: diff acima do limite do REVIEWER é dividido em partes dentro do mesmo PR (limites.revisao_em_partes, padrão true)."""
+    lim = cfg.get("limites") or {}
+    return fluxo(cfg) == "1.4" and bool(lim.get("revisao_em_partes", True))
+
+
+def max_partes(cfg: dict) -> int:
+    return int((cfg.get("limites") or {}).get("revisao_partes_max", MAX_PARTES_REVISAO))
+
+
+def _blocos_do_diff(diff: str) -> list[tuple[str, str]]:
+    """[(caminho, bloco do diff)] na ordem do git."""
+    out = []
+    for b in re.split(r"(?m)^(?=diff --git )", diff):
+        if b.strip():
+            m = re.match(r"diff --git a/(\S+) b/", b)
+            out.append((m.group(1) if m else "?", b))
+    return out
+
+
+def _mudancas(bloco: str) -> tuple[int, int]:
+    linhas = [l for l in bloco.splitlines() if not l.startswith(("+++", "---", "diff --git"))]
+    return sum(1 for l in linhas if l.startswith("+")), sum(1 for l in linhas if l.startswith("-"))
+
+
+def dividir_diff(diff: str, testes_globs: list[str] | None, limite: int, maximo: int) -> tuple[list[dict], list[str], int]:
+    """Divide o diff em até `maximo` partes de até `limite` caracteres, sem cortar arquivo ao meio.
+
+    Devolve (partes, não lidos, total de caracteres). Cada parte: n, arquivos, caracteres, texto, mudancas.
+    Ordem: código antes de teste, e a ordem de caminho do git dentro de cada grupo, para que arquivos da
+    mesma pasta caiam juntos. Um arquivo cujo diff sozinho passa do limite, ou que não cabe nas `maximo`
+    partes, vai para a lista de não lidos: nada é cortado em silêncio.
+    """
+    blocos = _blocos_do_diff(diff)
+    eh_teste = lambda nome: bool(testes_globs and casa(nome, testes_globs))  # noqa: E731
+    ordenados = [x for x in blocos if not eh_teste(x[0])] + [x for x in blocos if eh_teste(x[0])]
+    partes: list[dict] = []
+    nao_lidos: list[str] = []
+    for nome, b in ordenados:
+        if len(b) > limite:
+            nao_lidos.append(nome)
+            continue
+        if not partes or partes[-1]["caracteres"] + len(b) > limite:
+            if len(partes) >= maximo:
+                nao_lidos.append(nome)
+                continue
+            partes.append({"n": len(partes) + 1, "arquivos": [], "caracteres": 0, "texto": "", "mudancas": {}})
+        p = partes[-1]
+        p["arquivos"].append(nome); p["caracteres"] += len(b); p["texto"] += b
+        p["mudancas"][nome] = list(_mudancas(b))
+    return partes, nao_lidos, len(diff)
+
+
+def plano_revisao(diff: str, cfg: dict) -> dict | None:
+    """Plano da revisão do código. None = fluxo antigo (uma chamada, lista de não lidos como na 1.1).
+    Com plano, `partes` tem 0 ou 1 elemento = uma chamada só; 2 ou mais = revisão em partes."""
+    if not revisao_em_partes(cfg):
+        return None
+    partes, nao_lidos, total = dividir_diff(diff, cfg["testes"]["globs"], max_diff(cfg), max_partes(cfg))
+    return {"limite": max_diff(cfg), "max_partes": max_partes(cfg), "total_caracteres": total, "nao_lidos": nao_lidos,
+            "partes": [{k: p[k] for k in ("n", "arquivos", "caracteres", "mudancas")} for p in partes],
+            "textos": [p["texto"] for p in partes]}
+
+
+def chamadas_livres(cfg: dict, st: "Estado", tarefa_dir: str) -> int | None:
+    """Quantas chamadas de IA ainda cabem no teto da tarefa (None = sem teto)."""
+    mx = st.chamadas_max or (cfg.get("limites") or {}).get("chamadas_por_tarefa")
+    if not mx:
+        return None
+    return max(0, int(mx) - sum(1 for e in Registro(tarefa_dir).eventos() if e["evento"] == "CUSTO"))
+
+
+def gasto_da_tarefa(tarefa_dir: str) -> float:
+    return round(sum(float(e["dados"]["usd"]) for e in Registro(tarefa_dir).eventos()
+                     if e["evento"] == "CUSTO" and e["dados"].get("usd") is not None), 4)
+
+
+def _corpo_secao(md: str, titulo: str) -> str:
+    m = re.search(rf"^##\s+{re.escape(titulo)}\s*$(.*?)(?=^##\s|^RECOMENDAÇÃO:|\Z)", md, re.M | re.S)
+    return " ".join((m.group(1) if m else "").split())
+
+
+def _curto(txt: str, n: int) -> str:
+    return txt if len(txt) <= n else txt[: max(0, n - 1)].rstrip() + "…"
+
+
+def arquivo_parte(tarefa_dir: str, nome: str, n: int) -> str:
+    base, ext = os.path.splitext(nome)
+    return os.path.join(tarefa_dir, "partes", f"{base}.{n}{ext}")
+
+
+def guardar_parte(tarefa_dir: str, n: int) -> list[str]:
+    """Depois de cada chamada da revisão em partes: tira revisao-codigo.md e parecer-l4.md do lugar e os guarda como
+    da parte n. Assim a parte seguinte não herda a entrega da anterior, e uma parte que não entregou fica faltando."""
+    guardados = []
+    os.makedirs(os.path.join(tarefa_dir, "partes"), exist_ok=True)
+    for nome in ("revisao-codigo.md", "parecer-l4.md"):
+        origem = os.path.join(tarefa_dir, nome)
+        if os.path.isfile(origem):
+            os.replace(origem, arquivo_parte(tarefa_dir, nome, n))
+            guardados.append(nome)
+    return guardados
+
+
+def consolidar_revisao(tarefa_dir: str, plano: dict) -> dict:
+    """Junta as revisões das partes em revisao-codigo.md e parecer-l4.md (escritos pela máquina).
+
+    Regra: qualquer parte BLOQUEADA bloqueia; só aprova se TODAS as partes do plano foram lidas e aprovadas.
+    O plano vem do diff recalculado pela máquina, nunca de arquivo do agente. Arquivos que ficaram fora das
+    partes continuam listados como não lidos (e, no fluxo 1.4, viram risco de nível A se houver aprovação)."""
+    partes = plano["partes"]
+    revs, pars, faltam = {}, {}, []
+    for p in partes:
+        n = p["n"]
+        r, q = arquivo_parte(tarefa_dir, "revisao-codigo.md", n), arquivo_parte(tarefa_dir, "parecer-l4.md", n)
+        if not (os.path.isfile(r) and os.path.isfile(q)):
+            faltam.append(n)
+        else:
+            revs[n], pars[n] = ler(r), ler(q)
+    if faltam:
+        raise ErroFL("revisão em partes incompleta: sem a entrega das partes " + ", ".join(map(str, faltam))
+                     + f" (de {len(partes)}). Sem todas as partes lidas, não há aprovação")
+    vered = {}
+    for p in partes:
+        n = p["n"]
+        try:
+            vered[n] = ler_revisao(revs[n])
+            ler_parecer(pars[n], vered[n])
+        except ErroFL as e:
+            raise ErroFL(f"parte {n} de {len(partes)} inválida: {e}")
+    final = "BLOQUEADO" if "BLOQUEADO" in vered.values() else "APROVADO"
+    nao_lidos = list(plano.get("nao_lidos", []))
+    achados = []
+    for p in partes:
+        for l in revs[p["n"]].splitlines():
+            if re.match(r"^- \[(BLOQUEANTE|MELHORIA|ALTO|DESEMPENHO|DIVIDA)\]", l):
+                achados.append(f"{l.rstrip()} (parte {p['n']})")
+    rev = [f"# Revisão: código (consolidada de {len(partes)} partes)", "",
+           "Cada parte foi lida em uma chamada separada do REVIEWER. Regra: qualquer parte bloqueada bloqueia; "
+           "só aprova se todas as partes foram lidas e aprovadas.", "", "## Partes"]
+    for p in partes:
+        rev.append(f"- Parte {p['n']}: {vered[p['n']]}; arquivos: {', '.join(p['arquivos'])}")
+    rev += ["", "## Achados"] + (achados or ["(nenhum)"])
+    if nao_lidos:
+        rev += ["", "## Não lido (nenhuma parte recebeu estes arquivos)"] + [f"- {x}" for x in nao_lidos]
+    rev += ["", f"VEREDITO: {final}", ""]
+    cap = 900
+    while True:
+        mudou = "\n\n".join(f"Parte {p['n']}: {_curto(_corpo_secao(pars[p['n']], 'O que mudou'), cap)}" for p in partes)
+        riscos = "\n\n".join(f"Parte {p['n']}: {_curto(_corpo_secao(pars[p['n']], 'Riscos que sobraram'), cap)}" for p in partes)
+        if nao_lidos:
+            riscos += ("\n\nATENÇÃO: " + str(len(nao_lidos)) + " arquivo(s) não foram lidos por nenhuma parte "
+                       "(grandes demais para o limite do revisor): " + _curto(", ".join(nao_lidos), 600))
+        bloq = [str(n) for n, v in vered.items() if v == "BLOQUEADO"]
+        motivo = (f"A revisão foi feita em {len(partes)} partes. " + (
+            f"Bloqueou(aram) a(s) parte(s) {', '.join(bloq)}: veja os achados." if bloq
+            else "Todas as partes foram lidas e aprovadas" + (", mas há arquivos não lidos (risco de nível A)." if nao_lidos else ".")))
+        par = (f"## O que mudou\n{mudou}\n\n## Riscos que sobraram\n{riscos}\n\n## Recomendação\n{motivo}\n"
+               f"RECOMENDAÇÃO: {'REJEITAR' if final == 'BLOQUEADO' else 'APROVAR'}\n")
+        if len(par) <= 5900 or cap <= 60:
+            break
+        cap = cap // 2
+    with open(os.path.join(tarefa_dir, "revisao-codigo.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(rev))
+    with open(os.path.join(tarefa_dir, "parecer-l4.md"), "w", encoding="utf-8") as f:
+        f.write(par)
+    return {"veredito": final, "partes": [{"n": p["n"], "arquivos": p["arquivos"], "caracteres": p["caracteres"],
+                                          "veredito": vered[p["n"]]} for p in partes]}
+
+
+def texto_da_parte(plano: dict, n: int) -> str:
+    """O que a parte n precisa saber sobre as outras: só nomes e tamanho da mudança, para achar problema que cruza arquivos."""
+    total = len(plano["partes"])
+    minha = next(p for p in plano["partes"] if p["n"] == n)
+    linhas = [f"Esta é a PARTE {n} DE {total} da revisão. O diff da tarefa passou do limite de {plano['limite']} caracteres "
+              "e foi dividido por grupos de arquivos, dentro do mesmo PR. Em DIFF_DA_TAREFA você recebe só os arquivos "
+              "desta parte; cada outra parte é lida em uma chamada separada.", "",
+              "Arquivos desta parte: " + ", ".join(minha["arquivos"]), "",
+              "Arquivos das OUTRAS partes (você NÃO viu o conteúdo; só o nome e o tamanho da mudança, +linhas/-linhas):"]
+    for p in plano["partes"]:
+        if p["n"] != n:
+            linhas.append(f"- Parte {p['n']}: " + ", ".join(f"{a} (+{p['mudancas'][a][0]}/-{p['mudancas'][a][1]})" for a in p["arquivos"]))
+    if plano.get("nao_lidos"):
+        linhas.append("- Sem parte (grandes demais; ninguém os lerá): " + ", ".join(plano["nao_lidos"]))
+    linhas += ["", "Regras desta revisão em partes:",
+               "- O seu VEREDITO e o seu parecer valem só para esta parte. Escreva `revisao-codigo.md` e `parecer-l4.md` "
+               "como sempre; a máquina guarda a sua entrega como da parte " + str(n) + " e junta as partes.",
+               "- Defeito que você vê nos arquivos desta parte: `[BLOQUEANTE]`, como sempre. Suspeita que depende do que "
+               "está em outra parte (função chamada ou contrato que você não viu, teste de outra parte): `- [ALTO] <arquivo>: "
+               "o que a outra parte precisaria garantir`. Não bloqueie por hipótese e não invente o conteúdo que você não viu.",
+               "- O DESIGN (anexo DESIGN_MD) vale para todas as partes: use-o para saber o que cada arquivo deve fazer, "
+               "inclusive os das outras partes."]
+    return "\n".join(linhas)
+
+
+def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, diff: str | None = None,
+                  plano: dict | None = None, parte: int | None = None) -> str:
     """Prompt = regras fixas + manifesto do papel + contexto da tarefa (como DADO, delimitado)."""
     base = os.path.join(repo, ".spec2run")
     rel = os.path.relpath(tarefa_dir, repo).replace(os.sep, "/")
@@ -1371,12 +2161,25 @@ def montar_prompt(repo: str, tarefa_dir: str, papel: str, alvo: str, cfg: dict, 
         if os.path.exists(c) and not (papel == "SPECIFIER" and n == "design.md"):
             anexo(n.upper().replace(".", "_"), ler(c))
     if papel == "REVIEWER" and alvo == "codigo" and diff is not None:
-        texto, nao_lidos, _ = preparar_diff(diff, cfg["testes"]["globs"])
+        texto, nao_lidos, _ = preparar_diff(diff, cfg["testes"]["globs"], max_diff(cfg))
+        if parte is not None:
+            if not plano or not any(p["n"] == parte for p in plano["partes"]):
+                raise ErroFL(f"parte {parte} não existe no plano da revisão")
+            anexo("PARTE_DA_REVISAO", texto_da_parte(plano, parte))
+            nao_lidos = []   # o que ficou fora do diff desta parte está descrito em PARTE_DA_REVISAO
         anexo("DIFF_DA_TAREFA", texto + (
             "\n[ARQUIVOS NÃO INCLUÍDOS POR TAMANHO, você NÃO os viu: " + ", ".join(nao_lidos) + "]" if nao_lidos else ""))
+    if papel == PAPEL_RELATOR:
+        from . import riscos
+        anexo("LISTA_DE_RISCOS", riscos.texto_lista(st.riscos_itens))
+        anexo("O_QUE_AS_MAQUINAS_CONFERIRAM", texto_l4(tarefa_dir, st).split("**O que as máquinas conferiram")[-1][:3000])
+        c = os.path.join(tarefa_dir, "parecer-l4.md")
+        if os.path.exists(c):
+            anexo("PARECER_DO_REVIEWER", ler(c)[:6000])
     if papel == "SPECIFIER" or (papel == "REVIEWER" and alvo == "spec"):
         partes.append(regras_da_spec(repo, tarefa_dir, cfg))
-    modelo = {"SPECIFIER": "spec.md", "ARCHITECT": "design.md", "REVIEWER": "revisao.md"}.get(papel)
+    modelo = {"SPECIFIER": "spec.md", "ARCHITECT": "design.md", "REVIEWER": "revisao.md",
+              PAPEL_RELATOR: "relatorio-riscos.md"}.get(papel)
     if modelo:
         partes.append("## Formato obrigatório da entrega\n" + ler(os.path.join(base, "modelos", modelo)))
     if st.feedback:

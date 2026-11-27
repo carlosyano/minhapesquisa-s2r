@@ -1,4 +1,7 @@
-# Spec2Run Light 1.0: orquestra 5 agentes de IA (Claude, DeepSeek e Qwen) numa tarefa por issue.
+# Spec2Run Light 1.4: orquestra 6 agentes de IA (Claude, DeepSeek e Qwen) numa tarefa por issue.
+# Fluxo 1.4 (config.json "fluxo": "1.4"): Entender, Provar, Construir, Aceite do PO na prévia,
+# Riscos e aceitação, Entregar. Não há mais aprovação de código (L4); o PO aceita critérios e riscos.
+# Com "fluxo": "1.1" o workflow continua servindo ao desenho antigo (gate L4).
 #
 # Como a orquestração funciona:
 #   cada execução deste workflow faz UMA etapa e dispara a próxima (workflow_dispatch).
@@ -9,6 +12,10 @@
 #   orquestrar / publicar / registrar : token com escrita, NÃO executam código de agente;
 #   agente   : só a chave de API do papel (GitHub Environment do papel), token só de leitura;
 #   maquina  : executa testes e análises sobre o código dos agentes, SEM segredo e só leitura;
+#   previa   : só na 1.4 e só no modo homologacao (docker_local roda no notebook do PO): publica a prévia com
+#              a credencial do Environment s2r-previa (publica o código do agente; use credencial restrita
+#              à prévia, nunca a de produção: producao_restrita foi eliminado na 1.4);
+#   encerrar_previa: derruba a prévia quando o PR fecha (merge ou não);
 #   gate     : check obrigatório da main ("spec2run/gate");
 #   implantar: só depois do merge, no Environment s2r-producao, que pede a sua aprovação (L5).
 #
@@ -102,6 +109,8 @@ jobs:
             git checkout -q -b "$B"
           fi
           python -P -m spec2run checar-config --repo .
+          # 1.4: a ordem dos passos do GREEN tem de ser a do CI do repositório (falha aqui, antes de gastar IA)
+          python -P -m spec2run verificar-ordem-ci --repo .
       - name: Trazer a main para a branch da tarefa (você não precisa usar git)
         id: atualizar
         working-directory: repo
@@ -154,10 +163,23 @@ jobs:
             gh pr create --draft --base main --head "$B" --title "Spec2Run Light: tarefa #$TAREFA" \
               --body "Tarefa #$TAREFA conduzida pelo Spec2Run Light. Closes #$TAREFA"
           fi
+      - name: Etapa local (código determinístico, sem agente e sem rodar o código da tarefa)
+        if: steps.st.outputs.tipo == 'LOCAL'
+        working-directory: repo
+        run: |
+          python -P -m spec2run local --repo . --tarefa "$TAREFA" --base origin/main
+          git add ".spec2run/tarefas/$TAREFA"
+          git commit -q -m "s2r(#$TAREFA): etapa local ${{ steps.st.outputs.etapa }}"
+          git push -q origin "s2r/tarefa-$TAREFA"
+          gh workflow run spec2run.yml --repo "$GITHUB_REPOSITORY" --ref main -f tarefa="$TAREFA"
       - name: Avisar a pessoa
         if: steps.st.outputs.tipo == 'HUMANO' || steps.st.outputs.tipo == 'FIM'
         run: gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/estado.md"
-      - name: Liberar o merge (L4); com /s2r aprovar codigo, ativar o merge automático
+      - name: Painel de riscos aceitos (resumo da execução)
+        if: steps.st.outputs.tipo == 'FIM'
+        working-directory: repo
+        run: python -P -m spec2run painel --repo . --saida "$GITHUB_STEP_SUMMARY" || true
+      - name: "Liberar o merge (gate L4 na 1.1; gate MERGE ativa o merge automático)"
         if: steps.st.outputs.gate == 'L4' || steps.st.outputs.gate == 'MERGE'
         working-directory: repo
         env:
@@ -229,9 +251,19 @@ jobs:
         working-directory: repo
         run: |
           args=(prompt --repo . --tarefa "$TAREFA")
+          echo 1 > "$RUNNER_TEMP/n_partes"
           if [ "$PAPEL" = REVIEWER ] && [ "$ALVO" = codigo ]; then
             python -P -m spec2run diff-tarefa --repo . --tarefa "$TAREFA" --base origin/main --saida "$RUNNER_TEMP/diff.txt"
             args+=(--diff-arquivo "$RUNNER_TEMP/diff.txt")
+            # DL-61: mede o diff real. Se passar do limite do revisor, divide em partes (uma chamada por parte, no mesmo PR).
+            python -P -m spec2run plano-revisao --repo . --tarefa "$TAREFA" --base origin/main --saida-dir "$RUNNER_TEMP/revisao"
+            cp "$RUNNER_TEMP/revisao/n_partes" "$RUNNER_TEMP/n_partes"
+            if [ "$(cat "$RUNNER_TEMP/n_partes")" -gt 1 ]; then
+              for i in $(seq 1 "$(cat "$RUNNER_TEMP/n_partes")"); do
+                python -P -m spec2run prompt --repo . --tarefa "$TAREFA" --diff-arquivo "$RUNNER_TEMP/revisao/diff-$i.txt" \
+                  --plano-arquivo "$RUNNER_TEMP/revisao/plano.json" --parte "$i" > "$RUNNER_TEMP/revisao/prompt-$i.md"
+              done
+            fi
           fi
           python -P -m spec2run "${args[@]}" > "$RUNNER_TEMP/prompt.md"
       - name: Executar o agente (sem shell, sem token do GitHub)
@@ -240,20 +272,43 @@ jobs:
           AGENT_API_KEY: ${{ secrets.AGENT_API_KEY }}
         run: |
           [[ "$VARIAVEL_CHAVE" =~ ^[A-Z][A-Z0-9_]{1,63}$ ]] || { echo "variavel_chave inválida" >&2; exit 2; }
-          export PROMPT="$(cat "$RUNNER_TEMP/prompt.md")" PROMPT_ARQUIVO="$RUNNER_TEMP/prompt.md" MODELO SAIDA="$RUNNER_TEMP/saida-agente.json"
+          export MODELO
           [ -n "$AGENT_API_KEY" ] || { echo "::error::segredo AGENT_API_KEY vazio no Environment do papel" >&2; exit 2; }
           export "$VARIAVEL_CHAVE=$AGENT_API_KEY"
           CHAVE="$AGENT_API_KEY"
           unset AGENT_API_KEY
+          SAIDA="$RUNNER_TEMP/saida-agente.json"
+          SAIDAS_PARTES="$RUNNER_TEMP/saidas-partes"
+          N=$(cat "$RUNNER_TEMP/n_partes" 2>/dev/null || echo 1)
           set +e
-          bash -c "$EXECUTAR"
-          rc=$?
+          rc=0
+          if [ "$N" -le 1 ]; then
+            export PROMPT="$(cat "$RUNNER_TEMP/prompt.md")" PROMPT_ARQUIVO="$RUNNER_TEMP/prompt.md" SAIDA
+            bash -c "$EXECUTAR"
+            rc=$?
+          else
+            # Revisão em partes (DL-61): uma chamada por parte. Antes de cada uma, a máquina confere o teto da tarefa
+            # (chamadas e US$); se não cabe, para sem erro e o publicar registra o teto. Depois de cada uma, a entrega
+            # do revisor é guardada como da parte i, para a parte seguinte não herdá-la.
+            mkdir -p "$SAIDAS_PARTES"
+            for i in $(seq 1 "$N"); do
+              env -u "$VARIAVEL_CHAVE" python -P -m spec2run parte-liberada --repo . --tarefa "$TAREFA" --parte "$i" \
+                --plano-arquivo "$RUNNER_TEMP/revisao/plano.json" --saidas-dir "$SAIDAS_PARTES" || break
+              export PROMPT="$(cat "$RUNNER_TEMP/revisao/prompt-$i.md")" PROMPT_ARQUIVO="$RUNNER_TEMP/revisao/prompt-$i.md" SAIDA="$SAIDAS_PARTES/saida-parte-$i.json"
+              bash -c "$EXECUTAR"
+              r=$?
+              [ "$r" = 0 ] || rc="$r"
+              env -u "$VARIAVEL_CHAVE" python -P -m spec2run parte-guardar --repo . --tarefa "$TAREFA" --parte "$i"
+              [ "$r" = 0 ] || break
+            done
+          fi
           set -e
           # A chave não pode sair deste job: nem na entrega (que vira commit numa branch que
           # pode ser pública) nem no artefato da saída da CLI. Se aparecer, tudo é descartado.
           git add -A
-          if git diff --cached --binary | grep -qF -- "$CHAVE" || grep -qF -- "$CHAVE" "$SAIDA" 2>/dev/null; then
-            git reset -q --hard HEAD; git clean -fdxq; rm -f "$SAIDA"
+          if git diff --cached --binary | grep -qF -- "$CHAVE" || grep -qF -- "$CHAVE" "$SAIDA" 2>/dev/null \
+             || { [ -d "$SAIDAS_PARTES" ] && grep -rqF -- "$CHAVE" "$SAIDAS_PARTES"; }; then
+            git reset -q --hard HEAD; git clean -fdxq; rm -f "$SAIDA"; rm -rf "$SAIDAS_PARTES"
             echo "::error::a chave de API apareceu na entrega ou na saída do agente; entrega descartada"
             exit 1
           fi
@@ -266,6 +321,7 @@ jobs:
           git add -A
           git diff --cached --binary > "$RUNNER_TEMP/entrega.patch"
           cp "$RUNNER_TEMP/entrega.patch" "$RUNNER_TEMP/saida-agente.json" "$GITHUB_WORKSPACE/" 2>/dev/null || true
+          [ -d "$RUNNER_TEMP/saidas-partes" ] && cp -r "$RUNNER_TEMP/saidas-partes" "$GITHUB_WORKSPACE/" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -273,6 +329,7 @@ jobs:
           path: |
             entrega.patch
             saida-agente.json
+            saidas-partes/*.json
           retention-days: 14
           if-no-files-found: ignore
 
@@ -305,7 +362,7 @@ jobs:
           PATCH="$RUNNER_TEMP/entrega/entrega.patch"
           if [ -s "$PATCH" ]; then git apply --index "$PATCH" || echo "patch não aplicável: entrega será recusada"; fi
           set +e
-          python -P -m spec2run aceitar-entrega --repo . --tarefa "$TAREFA" --saida-agente "$RUNNER_TEMP/entrega/saida-agente.json"
+          python -P -m spec2run aceitar-entrega --repo . --tarefa "$TAREFA" --saida-agente "$RUNNER_TEMP/entrega/saida-agente.json" --saidas-partes "$RUNNER_TEMP/entrega/saidas-partes"
           rc=$?
           set -e
           [ "$rc" = 0 ] || [ "$rc" = 3 ] || exit "$rc"
@@ -320,6 +377,98 @@ jobs:
           gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body
           "**Spec2Run Light:** a entrega do agente não foi publicada (conflito de push ou erro do GitHub).
           Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID e rode Actions > spec2run > Run workflow (tarefa $TAREFA)." || true
+
+  previa:
+    # Só na 1.4, com previa.modo homologacao. No modo docker_local a prévia roda no seu
+    # notebook e o registro é feito pela etapa local. Este job roda comando do config.json (zona protegida)
+    # sobre o código da branch, COM a credencial do Environment: use credencial que só publique a prévia.
+    needs: orquestrar
+    if: needs.orquestrar.outputs.tipo == 'PREVIA'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: s2r-previa
+    permissions:
+      contents: read
+    env:
+      PREVIA_TOKEN: ${{ secrets.PREVIA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - name: Publicar a prévia
+        working-directory: repo
+        run: python -P -m spec2run previa --repo . --tarefa "$TAREFA" --saida "$GITHUB_WORKSPACE/previa.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: previa, path: previa.json, retention-days: 30, if-no-files-found: ignore}
+
+  registrar_previa:
+    needs: [orquestrar, previa]
+    if: always() && needs.orquestrar.outputs.tipo == 'PREVIA'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Prévia não concluiu
+        if: needs.previa.result != 'success'
+        run: |
+          gh issue comment "$TAREFA" --repo "$GITHUB_REPOSITORY" --body "**Spec2Run Light:** a publicação da prévia não terminou (erro de infraestrutura, credencial ou tempo esgotado). Veja $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID e rode de novo em Actions > spec2run > Run workflow (tarefa $TAREFA)."
+          exit 1
+      - uses: actions/checkout@v4
+        with: {path: _fl, ref: main, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with: {path: repo, ref: "s2r/tarefa-${{ env.TAREFA }}", fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/download-artifact@v4
+        with: {name: previa, path: "${{ runner.temp }}/pv"}
+      - name: Registrar a prévia (confere commit e hash do código)
+        working-directory: repo
+        run: |
+          git config user.name "spec2run[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python -P -m spec2run registrar-previa --repo . --tarefa "$TAREFA" --arquivo "$RUNNER_TEMP/pv/previa.json"
+          git add ".spec2run/tarefas/$TAREFA"
+          git commit -q -m "s2r(#$TAREFA): prévia registrada"
+          git push -q origin "s2r/tarefa-$TAREFA"
+      - name: Disparar a próxima etapa
+        run: gh workflow run spec2run.yml --repo "$GITHUB_REPOSITORY" --ref main -f tarefa="$TAREFA"
+
+  encerrar_previa:
+    # A prévia vale até o merge (ou até o PR ser fechado): depois disso é derrubada.
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 's2r/tarefa-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: s2r-previa
+    permissions:
+      contents: read
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PREVIA_TOKEN: ${{ secrets.PREVIA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, persist-credentials: false}
+      - name: Derrubar a prévia (se houver comando configurado)
+        run: |
+          N="${HEAD_REF#s2r/tarefa-}"
+          [[ "$N" =~ ^[0-9]{1,9}$ ]] || exit 2
+          export TAREFA="$N"
+          CMD=$(python3 -P -c "import json;c=json.load(open('.spec2run/config.json'));print('' if c.get('previa',{}).get('modo')=='docker_local' else c['comandos'].get('PREVIA_DESTRUIR',{}).get('cmd',''))")
+          if [ -z "$CMD" ]; then echo "sem PREVIA_DESTRUIR (ou prévia local): nada a derrubar"; exit 0; fi
+          bash -c "$CMD"
 
   maquina:
     needs: orquestrar

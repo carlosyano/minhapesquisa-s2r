@@ -1,5 +1,6 @@
 {
- "versao": "1.0",
+ "versao": "1.4",
+ "fluxo": "1.4",
  "dados_sensiveis": "PERMITIR_COM_ELEVADO",
  "aprovar_testes": true,
  "nivel_minimo": "ELEVADO",
@@ -25,7 +26,11 @@
   "moeda": "USD",
   "limite_mensal_por_chave": 10.0,
   "por_papel": {},
-  "_leia": "Valor de referência por chave de API. Para um papel ter outro limite, ponha em por_papel, ex.: {\"BUILDER\": 20.00}. O corte de verdade é configurado no console de cada fornecedor (Guia, seção 3)."
+  "_leia": "Valor de referência por chave de API. Para um papel ter outro limite, ponha em por_papel, ex.: {\"BUILDER\": 20.00}. O corte de verdade é configurado no console de cada fornecedor (Guia, seção 3).",
+  "ciclo_dia": 1,
+  "limite_por_tarefa_usd": 3.0,
+  "_leia_tarefa": "Teto por TAREFA em US$ (DL-60): vale onde a CLI informa o custo. Valor inicial a revisar depois de 5 tarefas medidas. Atingido, a tarefa para e o PO escolhe: /s2r limite <US$> ou /s2r cancelar. O corte de verdade continua no painel do fornecedor.",
+  "_leia_teto": "Quando o limite do ciclo é atingido (custo informado pela CLI) ou o fornecedor diz que o crédito acabou, a tarefa para e quem a conduz escolhe: /s2r limite <valor> ou /s2r aguardar (DL-59, decisão 4). ciclo_dia: dia do mês em que a cobrança do fornecedor reinicia."
  },
  "humanos": [
   "carlosyano"
@@ -37,7 +42,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "deepseek/deepseek-v4-pro",
    "variavel_chave": "DEEPSEEK_API_KEY",
-   "ambiente": "s2r-specifier"
+   "ambiente": "s2r-specifier",
+   "plano": "api_por_uso"
   },
   "ARCHITECT": {
    "fornecedor": "anthropic",
@@ -45,7 +51,8 @@
    "versao_ferramenta": "2.1.326",
    "modelo": "claude-opus-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
-   "ambiente": "s2r-architect"
+   "ambiente": "s2r-architect",
+   "plano": "api_por_uso"
   },
   "TEST_DESIGNER": {
    "fornecedor": "alibaba",
@@ -53,7 +60,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "alibaba-sg/qwen4-max",
    "variavel_chave": "DASHSCOPE_API_KEY",
-   "ambiente": "s2r-test-designer"
+   "ambiente": "s2r-test-designer",
+   "plano": "plano_pessoal"
   },
   "BUILDER": {
    "fornecedor": "deepseek",
@@ -61,7 +69,8 @@
    "versao_ferramenta": "1.19.5",
    "modelo": "deepseek/deepseek-flash",
    "variavel_chave": "DEEPSEEK_API_KEY",
-   "ambiente": "s2r-builder"
+   "ambiente": "s2r-builder",
+   "plano": "api_por_uso"
   },
   "REVIEWER": {
    "fornecedor": "anthropic",
@@ -69,7 +78,17 @@
    "versao_ferramenta": "2.1.326",
    "modelo": "claude-opus-5-5",
    "variavel_chave": "ANTHROPIC_API_KEY",
-   "ambiente": "s2r-reviewer"
+   "ambiente": "s2r-reviewer",
+   "plano": "api_por_uso"
+  },
+  "RISK_REPORTER": {
+   "fornecedor": "anthropic",
+   "ferramenta": "claude-code",
+   "versao_ferramenta": "2.1.326",
+   "modelo": "claude-sonnet-5-5",
+   "variavel_chave": "ANTHROPIC_API_KEY",
+   "ambiente": "s2r-risk-reporter",
+   "plano": "api_por_uso"
   }
  },
  "ferramentas": {
@@ -85,7 +104,7 @@
   "opencode-alibaba": {
    "instalar": "npm install -g opencode-ai@{versao}",
    "executar": "[[ \"${AGENT_BASE_URL:-}\" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || { echo \"::error::defina a variável AGENT_BASE_URL (https) no Environment do papel\" >&2; exit 2; } && m=\"${MODELO#*/}\" && printf '{\"permission\":{\"edit\":\"allow\",\"bash\":\"deny\",\"webfetch\":\"deny\"},\"provider\":{\"alibaba-sg\":{\"npm\":\"@ai-sdk/anthropic\",\"name\":\"Alibaba Cloud Model Studio\",\"options\":{\"baseURL\":\"{env:AGENT_BASE_URL}\",\"apiKey\":\"{env:DASHSCOPE_API_KEY}\"},\"models\":{\"%s\":{\"name\":\"%s\"}}}}}' \"$m\" \"$m\" > \"$RUNNER_TEMP/opencode.json\" && OPENCODE_CONFIG=\"$RUNNER_TEMP/opencode.json\" opencode run \"$PROMPT\" --model \"$MODELO\" > \"$SAIDA\"",
-   "_leia": "OpenCode com o Alibaba Cloud Model Studio (Singapura). AGENT_BASE_URL é variável (não segredo) do Environment do papel: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1 (Token Plan; precisa terminar em /v1). Pay-as-you-go: https://<WorkspaceId>.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1. A chave vai em DASHSCOPE_API_KEY (variavel_chave). DL-44."
+   "_leia": "OpenCode com o Alibaba Cloud Model Studio (Singapura). AGENT_BASE_URL é variável (não segredo) do Environment do papel: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic/v1 (Token Plan; precisa terminar em /v1). Atenção: os termos do Token Plan Personal proíbem automação; risco aceito pelo responsável (DL-51). Alternativa: https://dashscope-intl.aliyuncs.com/apps/anthropic/v1 (pay-as-you-go). A chave vai em DASHSCOPE_API_KEY (variavel_chave). DL-44."
   }
  },
  "diversidade": [
@@ -112,6 +131,14 @@
    ],
    "modo": "ADVISORY",
    "motivo": "decisão do Carlos (19/11/2026, DL-44): Qwen testa e DeepSeek codifica, fornecedores diferentes; ADVISORY para permitir voltar ao mesmo fornecedor (ADR-18), com o RED e o hash dos testes compensando"
+  },
+  {
+   "papeis": [
+    "RISK_REPORTER",
+    "BUILDER"
+   ],
+   "modo": "BLOCK",
+   "motivo": "quem explica os riscos ao PO não pode ser do fornecedor que escreveu o código (DL-59, decisão 10)"
   }
  ],
  "testes": {
@@ -175,13 +202,19 @@
    "regex_falta_codigo": "Failed to (?:load url|resolve import)|Cannot find module|does not provide an export named"
   },
   "SAST": {
-   "cmd": "semgrep scan --config p/typescript --config p/nodejs --config p/secrets --error --disable-nosem --metrics=off apps packages"
+   "cmd": "semgrep scan --config p/typescript --config p/nodejs --config p/secrets --json --quiet --disable-nosem --metrics=off apps packages 2>/dev/null",
+   "modo": "medicao",
+   "formato": "semgrep-json",
+   "_leia": "Na 1.4 a severidade vem do JSON: ERROR = alta (risco B), WARNING = média e INFO = baixa (risco C). O código de saída da ferramenta não decide. (não validado no Actions; confira no piloto)"
   },
   "SEGREDOS": {
    "cmd": "docker run --rm -v \"$PWD:/repo\" zricethezav/gitleaks:v8.28.0 git /repo --redact --exit-code 1"
   },
   "DEPENDENCIAS": {
-   "cmd": "npm audit --omit=dev --audit-level=high"
+   "cmd": "npm audit --omit=dev --json 2>/dev/null",
+   "modo": "medicao",
+   "formato": "npm-audit-json",
+   "_leia": "Na 1.4: crítica = nível A (volta ao BUILDER); alta = B; média e baixa = C. O código de saída do npm não decide. (não validado no Actions; confira no piloto)"
   },
   "MUTACAO": {
    "cmd": "npm run test:mutacao",
@@ -201,16 +234,73 @@
   },
   "ROLLBACK": {
    "cmd": ""
+  },
+  "PREVIA": {
+   "cmd": "docker compose -f docker-compose.previa.yml up --build",
+   "_leia": "OBRIGATÓRIO na 1.4: a prévia é pré-requisito de adoção. Docker local: o comando que você roda no notebook (aparece no roteiro de aceite); troque pelo do seu projeto. Homologação: o comando que o job s2r-previa executa e que imprime o endereço."
+  },
+  "PREVIA_DESTRUIR": {
+   "cmd": "",
+   "_leia": "Destrói a prévia no merge ou no cancelamento (a prévia vale até o merge)."
   }
  },
  "limites": {
   "tentativas_por_papel": 3,
-  "timeout_comando_s": 900
+  "timeout_comando_s": 900,
+  "mitigacoes": 3,
+  "mutacao_tentativas": 3,
+  "chamadas_por_tarefa": 30,
+  "diff_max_caracteres": 60000,
+  "arquivos_max_por_tarefa": 6,
+  "revisao_em_partes": true,
+  "revisao_partes_max": 4,
+  "_leia_chamadas": "Teto por TAREFA em número de chamadas de IA (todas as entregas de agente, aceitas ou recusadas). Vale para qualquer fornecedor, mesmo sem custo informado. Valor inicial a revisar depois de 5 tarefas medidas.",
+  "_leia_diff": "Caracteres do diff que o REVIEWER lê numa chamada (sem registro, evidências e lockfiles). Para um fornecedor de revisor com janela diferente: diff_max_por_fornecedor: {\"anthropic\": 90000}. Acima disso, com revisao_em_partes true (DL-61), o diff real é dividido por grupos de arquivos e revisado em até revisao_partes_max chamadas dentro do mesmo PR; cada parte conta como uma chamada em chamadas_por_tarefa. O que não couber nas partes (arquivo maior que o limite ou excedente) fica sem leitura e vira risco de nível A. arquivos_max_por_tarefa é um teto de referência: o design deve listar os arquivos previstos (seção obrigatória) e, acima do teto, o L1 recebe um AVISO para você considerar pedir uma fatia menor; não recusa o design. Não há teto de critérios de aceite (DL-61). O valor inicial deve ser revisado depois de 5 tarefas medidas. Com revisao_em_partes false, volta ao comportamento da DL-60: acima do limite é risco A e o SPECIFIER deve fatiar a tarefa."
  },
+ "green_ordem": [
+  "LINT",
+  "BUILD",
+  "TIPOS",
+  "TESTES",
+  "COBERTURA",
+  "SAST",
+  "SEGREDOS",
+  "DEPENDENCIAS",
+  "LICENCAS"
+ ],
+ "_leia_green_ordem": "Ordem dos passos do GREEN. Tem de ser a mesma do ci.yml do repositório: confira na instalação com python -P -m spec2run verificar-ordem-ci (DL-60). Os passos de green_extra e a MUTACAO vêm depois.",
+ "_leia_plano": "Declare em cada papel de 'papeis' o campo \"plano\": \"api_por_uso\" ou \"plano_pessoal\". Plano pessoal (cujos termos podem proibir automação) só é aceito com plano_pessoal_risco_assumido: {\"motivo\": ..., \"decidido_por\": <alguém de humanos>, \"em\": <data>}; vira risco B em toda tarefa. Quem adota o processo escolhe: assumir o risco ou usar pay-as-you-go (DL-60).",
  "ci_do_repositorio": "ci.yml",
  "green_extra": [
   "TIPOS",
   "CONSISTENCIA",
   "CONTRATO"
- ]
+ ],
+ "_leia_fluxo": "fluxo '1.4' (padrão): prévia, aceite do PO e aceitação de riscos no lugar da aprovação de código (L4). '1.1' volta ao L4 antigo, por uma versão (DL-59, decisão 6). '1.3' deixou de existir como valor: a 1.4 o substitui.",
+ "diversidade_excecoes": [],
+ "_leia_diversidade_excecoes": "Exceção humana à separação de fornecedores (DL-56). Cada item: {\"papeis\": [\"REVIEWER\",\"BUILDER\"], \"motivo\": \"...\", \"decidido_por\": \"<alguém de humanos>\", \"em\": \"aaaa-mm-dd\"}. Vira risco de nível B em toda tarefa. Só se muda por PR de pessoa.",
+ "aceite": {
+  "po": [
+   "carlosyano"
+  ],
+  "delegacao": "Autoridade própria: Carlos Yano, dono e PO do MinhaPesquisa, 2026-11-27",
+  "exigir_anexo_B": false,
+  "_leia": "po: quem aceita critérios e riscos (precisa estar em humanos). delegacao: identificador do documento de delegação por escrito da autoridade do PO, guardado fora do repositório; vazio = os comandos de aceite são recusados (DL-57). exigir_anexo_B: true exige parecer anexado no nível B."
+ },
+ "previa": {
+  "modo": "docker_local",
+  "dados_sinteticos": true,
+  "_leia": "modo: homologacao (se houver ambiente) ou docker_local (Docker no seu notebook; o job só publica o roteiro). O modo producao_restrita foi eliminado na 1.4 (DL-60): código que o PO ainda não aceitou não roda na produção. Sem nenhum dos dois ambientes, o processo não pode ser adotado. A prévia vale até o merge (comandos.PREVIA_DESTRUIR)."
+ },
+ "riscos": {
+  "agregar_c_acima_de": 5,
+  "alteracao_grande_linhas": 800,
+  "dados_reais_permitir": [],
+  "_leia": "agregar_c_acima_de: mais de N achados baixos ou médios do mesmo tipo sobem para o nível B. dados_reais_permitir: expressões regulares de CPFs e e-mails SINTÉTICOS conhecidos que a varredura de dado real deve ignorar (ex.: \"^123\\\\.?456\\\\.?789-?09$\"). O catálogo de riscos e os níveis ficam no código (tools/spec2run/riscos.py), não aqui, para a configuração não rebaixar risco."
+ },
+ "plano_pessoal_risco_assumido": {
+  "motivo": "Os termos do Token Plan Personal da Alibaba proíbem automação (risco de suspensão e banimento da chave); Carlos decidiu manter o plano e aceitar o risco (DL-51). Reavaliar antes de uso em produção.",
+  "decidido_por": "carlosyano",
+  "em": "2026-11-21"
+ }
 }
