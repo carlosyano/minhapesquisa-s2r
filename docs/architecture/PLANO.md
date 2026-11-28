@@ -3,7 +3,7 @@
 # PLANO.md — MinhaPesquisa
 
 **Plano técnico e de incrementos · Fase 3 (cty-arq)**
-**Fontes normativas:** REQ v2.11 (CHG-011 propagada no IMP-005; CHG-012 aceita em 04/11/2026; CHG-013 a CHG-016 aceitas em 05/11/2026; CHG-017 aceita em 06/11/2026; CHG-018 aceita em 07/11/2026; CHG-019 proposta em 10/11/2026; CHG-020 aceita em 21/11/2026) · docs/spec/BLOCO_P.md · Kit v3
+**Fontes normativas:** REQ v2.11 (CHG-011 propagada no IMP-005; CHG-012 aceita em 04/11/2026; CHG-013 a CHG-016 aceitas em 05/11/2026; CHG-017 aceita em 06/11/2026; CHG-018 aceita em 07/11/2026; CHG-019 proposta em 10/11/2026; CHG-020 aceita em 21/11/2026; CHG-021 aceita em 28/11/2026) · docs/spec/BLOCO_P.md · Kit v3
 **Nível de rigor:** Completo
 **Responsável:** Carlos Yano
 **Versão do plano:** 3.25
@@ -563,7 +563,7 @@ validado pelo CI a cada merge.
 | CHG-018 — texto da opção "Outro" e nome do arquivo enviado (DEC-197 a DEC-203) | mudança normativa | aceita em 07/11/2026 (REQ v2.8, PLANO v3.19); Q-084 a Q-098 respondidas (DEC-197 a DEC-202 e DEC-204 a DEC-212); rodadas 1 a 4 corrigidas (REV-REQ-016 a REV-REQ-019, REV-PLANO-018 a REV-PLANO-021), ciclo encerrado pela DEC-073 na rodada 4; implementação no IMP-009 |
 | CHG-019 — projeto e formulário no envio, leitura da página inteira, QR legível e layout do PDF (DEC-215 a DEC-220) | mudança normativa | aceita em 13/11/2026 (REQ v2.9, PLANO v3.22, OpenAPI 0.9.0); Q-099 a Q-118 respondidas (DEC-215 a DEC-218, DEC-221 a DEC-227, DEC-229 a DEC-235); ciclo fechado na rodada 6 (REV-REQ-020 a REV-REQ-025, REV-PLANO-022 a REV-PLANO-027; médios e baixos no §12.3); implementação no IMP-010 |
 | CHG-020 — limpeza diária dos arquivos de importações terminadas, separada do expurgo (F-21, DEC-237) | mudança normativa | proposta em 19/11/2026 e aceita em 21/11/2026 (REQ v2.10, PLANO v3.24), depois da REV-REQ-026 e da REV-PLANO-028; implementação no IMP-011 |
-| CHG-021 — arquivo diferente do formulário escolhido: aviso e confirmação da usuária (DEC-238) | mudança normativa | proposta em 27/11/2026 (REQ v2.11, PLANO v3.25, OpenAPI 0.9.2); Q-119 a Q-139 respondidas (DEC-238, DEC-240, DEC-241, DEC-242); as rodadas 1 a 5 (REV-REQ-027 a REV-REQ-031) reprovaram e os achados foram tratados (0 bloqueantes desde a rodada 3); Q-140 e Q-141 respondidas (DEC-242); Q-142 aberta; falta o aceite do responsável; novo RF-017 e incremento próprio IMP-012 (DEC-239); a implementação é do IA-DEV depois dos testes aprovados |
+| CHG-021 — arquivo diferente do formulário escolhido: aviso e confirmação da usuária (DEC-238) | mudança normativa | proposta em 27/11/2026 e aceita em 28/11/2026 (REQ v2.11, PLANO v3.25, OpenAPI 0.9.2); Q-119 a Q-142 respondidas (DEC-238, DEC-240, DEC-241, DEC-242); as rodadas 1 a 5 (REV-REQ-027 a REV-REQ-031) reprovaram e os achados foram tratados (0 bloqueantes desde a rodada 3); Q-140 a Q-142 respondidas (DEC-242); aceite do responsável em 28/11/2026; novo RF-017 e incremento próprio IMP-012 (DEC-239); a implementação é do IA-DEV depois dos testes aprovados |
 
 ### 12.1 Histórico da errata da matriz inline da REQ v1.2
 
